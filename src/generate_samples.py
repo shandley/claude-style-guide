@@ -1,7 +1,8 @@
 """
-Generate text samples from Claude Opus 4.5 via the Anthropic API.
+Generate text samples from Claude models via the Anthropic API.
 
 Implements resumability, rate limiting, and progress tracking.
+Supports multiple Claude model versions for comparison.
 """
 
 import json
@@ -13,12 +14,29 @@ from pathlib import Path
 import anthropic
 from tqdm import tqdm
 
-# Model to use for generation
-MODEL_ID = "claude-opus-4-5-20251101"
+# Available models for comparison
+AVAILABLE_MODELS = {
+    "opus-4.5": "claude-opus-4-5-20251101",
+    "sonnet-4": "claude-sonnet-4-20250514",
+    "sonnet-3.5": "claude-3-5-sonnet-20241022",
+    "opus-3": "claude-3-opus-20240229",
+    "sonnet-3": "claude-3-sonnet-20240229",
+    "haiku-3": "claude-3-haiku-20240307",
+}
+
+DEFAULT_MODEL = "opus-4.5"
 
 # Rate limiting settings
 REQUESTS_PER_MINUTE = 50  # Conservative default
 MIN_DELAY_BETWEEN_REQUESTS = 1.2  # seconds
+
+
+def get_model_id(model_name: str) -> str:
+    """Get full model ID from short name."""
+    if model_name in AVAILABLE_MODELS:
+        return AVAILABLE_MODELS[model_name]
+    # Allow passing full model ID directly
+    return model_name
 
 
 def load_prompts(prompts_path: Path) -> list[dict]:
@@ -47,9 +65,10 @@ def load_existing_samples(samples_path: Path) -> set[str]:
 def generate_sample(
     client: anthropic.Anthropic,
     prompt_data: dict,
+    model_id: str,
     max_tokens: int = 1024
 ) -> dict | None:
-    """Generate a single sample from Opus."""
+    """Generate a single sample from the specified model."""
     try:
         # Map expected length to token limits
         length_tokens = {
@@ -60,7 +79,7 @@ def generate_sample(
         tokens = length_tokens.get(prompt_data.get("expected_length", "medium"), 512)
 
         response = client.messages.create(
-            model=MODEL_ID,
+            model=model_id,
             max_tokens=tokens,
             messages=[
                 {"role": "user", "content": prompt_data["prompt"]}
@@ -81,7 +100,7 @@ def generate_sample(
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
             "timestamp": datetime.now().isoformat(),
-            "model": MODEL_ID,
+            "model": model_id,
         }
 
     except anthropic.RateLimitError:
@@ -105,16 +124,18 @@ def save_sample(sample: dict, output_path: Path) -> None:
 def generate_samples(
     prompts_path: Path,
     output_path: Path,
+    model_id: str,
     num_samples: int | None = None,
     resume: bool = True,
     verbose: bool = False
 ) -> dict:
     """
-    Generate samples from Opus for the given prompts.
+    Generate samples from the specified model for the given prompts.
 
     Args:
         prompts_path: Path to prompts JSONL file
         output_path: Path to output samples JSONL file
+        model_id: Full model ID to use
         num_samples: Maximum number of samples to generate (None = all)
         resume: Skip already-generated samples
         verbose: Print detailed progress
@@ -155,7 +176,7 @@ def generate_samples(
     stats = {"generated": 0, "skipped": len(existing_ids), "failed": 0}
     last_request_time = 0
 
-    with tqdm(total=len(remaining_prompts), desc="Generating samples") as pbar:
+    with tqdm(total=len(remaining_prompts), desc=f"Generating ({model_id})") as pbar:
         for prompt_data in remaining_prompts:
             # Rate limiting
             elapsed = time.time() - last_request_time
@@ -164,7 +185,7 @@ def generate_samples(
 
             # Generate
             last_request_time = time.time()
-            sample = generate_sample(client, prompt_data)
+            sample = generate_sample(client, prompt_data, model_id)
 
             if sample:
                 save_sample(sample, output_path)
@@ -175,7 +196,7 @@ def generate_samples(
                 stats["failed"] += 1
                 # Retry once after failure
                 time.sleep(2)
-                sample = generate_sample(client, prompt_data)
+                sample = generate_sample(client, prompt_data, model_id)
                 if sample:
                     save_sample(sample, output_path)
                     stats["generated"] += 1
@@ -189,12 +210,16 @@ def generate_samples(
 def main(
     prompts_path: Path,
     output_path: Path,
+    model: str = DEFAULT_MODEL,
     num_samples: int | None = None,
     resume: bool = True,
     verbose: bool = False
 ) -> dict:
     """Main entry point."""
-    print(f"Generating Opus samples...")
+    model_id = get_model_id(model)
+
+    print(f"Generating samples...")
+    print(f"  Model: {model} ({model_id})")
     print(f"  Prompts: {prompts_path}")
     print(f"  Output: {output_path}")
     print(f"  Max samples: {num_samples or 'all'}")
@@ -204,6 +229,7 @@ def main(
     stats = generate_samples(
         prompts_path=prompts_path,
         output_path=output_path,
+        model_id=model_id,
         num_samples=num_samples,
         resume=resume,
         verbose=verbose

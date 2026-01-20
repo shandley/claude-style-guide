@@ -9,6 +9,9 @@ Usage:
     python run_pipeline.py all --verbose
     python run_pipeline.py generate-prompts
     python run_pipeline.py generate-samples --n 200
+    python run_pipeline.py generate-samples --model sonnet-3.5 --n 200
+    python run_pipeline.py generate-all-models --n 100
+    python run_pipeline.py compare-models
     python run_pipeline.py fetch-human-corpus --n 10000
     python run_pipeline.py analyze
     python run_pipeline.py report
@@ -34,11 +37,25 @@ OPUS_SAMPLES_PATH = DATA_PATH / "opus_samples.jsonl"
 HUMAN_SAMPLES_PATH = DATA_PATH / "human_samples.jsonl"
 MARKERS_PATH = RESULTS_PATH / "markers.json"
 STYLEGUIDE_PATH = RESULTS_PATH / "styleguide.md"
+COMPARISON_PATH = RESULTS_PATH / "model_comparison.json"
+COMPARISON_REPORT_PATH = RESULTS_PATH / "model_comparison.md"
+
+# Available models
+AVAILABLE_MODELS = [
+    "opus-4.5", "sonnet-4", "sonnet-3.5", "opus-3", "sonnet-3", "haiku-3"
+]
+
+
+def get_model_samples_path(model: str) -> Path:
+    """Get the samples path for a given model."""
+    if model == "opus-4.5":
+        return OPUS_SAMPLES_PATH  # Legacy path for backward compatibility
+    return DATA_PATH / f"{model.replace('.', '_')}_samples.jsonl"
 
 
 @click.group()
 def cli():
-    """Opus Styleguide Generator - Identify LLM patterns to avoid in your writing."""
+    """Claude Styleguide Generator - Identify LLM patterns to avoid in your writing."""
     pass
 
 
@@ -54,13 +71,18 @@ def generate_prompts(n: int, verbose: bool):
 
 @cli.command()
 @click.option("--n", default=200, help="Number of samples to generate")
+@click.option("--model", "-m", default="opus-4.5",
+              type=click.Choice(AVAILABLE_MODELS),
+              help="Model to use for generation")
 @click.option("--resume/--no-resume", default=True, help="Resume from existing samples")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
-def generate_samples(n: int, resume: bool, verbose: bool):
-    """Generate text samples from Opus via API."""
+def generate_samples(n: int, model: str, resume: bool, verbose: bool):
+    """Generate text samples from a Claude model via API."""
     from generate_prompts import main as generate_prompts_main
     from generate_samples import main as generate_samples_main
-    click.echo(f"Generating up to {n} Opus samples...")
+
+    output_path = get_model_samples_path(model)
+    click.echo(f"Generating up to {n} samples from {model}...")
 
     # Check if prompts exist
     if not PROMPTS_PATH.exists():
@@ -69,11 +91,102 @@ def generate_samples(n: int, resume: bool, verbose: bool):
 
     generate_samples_main(
         prompts_path=PROMPTS_PATH,
-        output_path=OPUS_SAMPLES_PATH,
+        output_path=output_path,
+        model=model,
         num_samples=n,
         resume=resume,
         verbose=verbose
     )
+
+
+@cli.command("generate-all-models")
+@click.option("--n", default=100, help="Number of samples per model")
+@click.option("--models", "-m", default="opus-3,sonnet-3.5,opus-4.5",
+              help="Comma-separated list of models to sample")
+@click.option("--resume/--no-resume", default=True, help="Resume from existing samples")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
+def generate_all_models(n: int, models: str, resume: bool, verbose: bool):
+    """Generate samples from multiple Claude models for comparison."""
+    from generate_prompts import main as generate_prompts_main
+    from generate_samples import main as generate_samples_main
+
+    model_list = [m.strip() for m in models.split(",")]
+
+    # Validate models
+    for model in model_list:
+        if model not in AVAILABLE_MODELS:
+            click.echo(f"Error: Unknown model '{model}'", err=True)
+            click.echo(f"Available: {', '.join(AVAILABLE_MODELS)}", err=True)
+            sys.exit(1)
+
+    click.echo("=" * 60)
+    click.echo("Multi-Model Sample Generation")
+    click.echo("=" * 60)
+    click.echo(f"Models: {', '.join(model_list)}")
+    click.echo(f"Samples per model: {n}")
+    click.echo()
+
+    # Check if prompts exist
+    if not PROMPTS_PATH.exists():
+        click.echo("Generating prompts first...")
+        generate_prompts_main(PROMPTS_PATH, num_prompts=n + 50)
+        click.echo()
+
+    # Generate samples for each model
+    for i, model in enumerate(model_list, 1):
+        click.echo(f"[{i}/{len(model_list)}] Generating {model} samples...")
+        output_path = get_model_samples_path(model)
+
+        generate_samples_main(
+            prompts_path=PROMPTS_PATH,
+            output_path=output_path,
+            model=model,
+            num_samples=n,
+            resume=resume,
+            verbose=verbose
+        )
+        click.echo()
+
+    click.echo("=" * 60)
+    click.echo("All models complete!")
+    click.echo("Run 'python run_pipeline.py compare-models' to generate comparison.")
+    click.echo("=" * 60)
+
+
+@cli.command("compare-models")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed output")
+def compare_models(verbose: bool):
+    """Compare patterns across different Claude model versions."""
+    from compare import main as compare_main
+
+    click.echo("Comparing model patterns...")
+
+    # Check if human corpus exists
+    if not HUMAN_SAMPLES_PATH.exists():
+        click.echo("Error: No human corpus found. Run 'fetch-human-corpus' first.", err=True)
+        sys.exit(1)
+
+    # Check if any model samples exist
+    found_models = []
+    for model in AVAILABLE_MODELS:
+        path = get_model_samples_path(model)
+        if path.exists():
+            found_models.append(model)
+
+    if not found_models:
+        click.echo("Error: No model samples found. Run 'generate-samples' first.", err=True)
+        sys.exit(1)
+
+    click.echo(f"Found samples for: {', '.join(found_models)}")
+
+    compare_main(
+        data_dir=DATA_PATH,
+        human_path=HUMAN_SAMPLES_PATH,
+        output_dir=RESULTS_PATH,
+        verbose=verbose
+    )
+
+    click.echo(f"\nComparison report: {COMPARISON_REPORT_PATH}")
 
 
 @cli.command()
@@ -150,7 +263,7 @@ def all(n_samples: int, n_human: int, resume: bool, verbose: bool):
     from report import main as report_main
 
     click.echo("=" * 60)
-    click.echo("Opus Styleguide Generator - Full Pipeline")
+    click.echo("Claude Styleguide Generator - Full Pipeline")
     click.echo("=" * 60)
     click.echo()
 
@@ -167,6 +280,7 @@ def all(n_samples: int, n_human: int, resume: bool, verbose: bool):
     generate_samples_main(
         prompts_path=PROMPTS_PATH,
         output_path=OPUS_SAMPLES_PATH,
+        model="opus-4.5",
         num_samples=n_samples,
         resume=resume,
         verbose=verbose
@@ -213,7 +327,7 @@ def all(n_samples: int, n_human: int, resume: bool, verbose: bool):
 def status():
     """Check pipeline status and file counts."""
     click.echo("Pipeline Status")
-    click.echo("-" * 40)
+    click.echo("-" * 50)
 
     def count_lines(path: Path) -> int:
         if not path.exists():
@@ -224,23 +338,25 @@ def status():
     # Prompts
     if PROMPTS_PATH.exists():
         count = count_lines(PROMPTS_PATH)
-        click.echo(f"Prompts:       {count} prompts ready")
+        click.echo(f"Prompts:        {count} prompts ready")
     else:
-        click.echo("Prompts:       Not generated")
+        click.echo("Prompts:        Not generated")
 
-    # Opus samples
-    if OPUS_SAMPLES_PATH.exists():
-        count = count_lines(OPUS_SAMPLES_PATH)
-        click.echo(f"Opus samples:  {count} samples")
-    else:
-        click.echo("Opus samples:  Not generated")
+    # Model samples
+    click.echo("\nModel Samples:")
+    for model in AVAILABLE_MODELS:
+        path = get_model_samples_path(model)
+        if path.exists():
+            count = count_lines(path)
+            click.echo(f"  {model:12}  {count} samples")
 
     # Human corpus
+    click.echo()
     if HUMAN_SAMPLES_PATH.exists():
         count = count_lines(HUMAN_SAMPLES_PATH)
-        click.echo(f"Human corpus:  {count} samples")
+        click.echo(f"Human corpus:   {count} samples")
     else:
-        click.echo("Human corpus:  Not fetched")
+        click.echo("Human corpus:   Not fetched")
 
     # Analysis
     if MARKERS_PATH.exists():
@@ -248,17 +364,23 @@ def status():
         with open(MARKERS_PATH) as f:
             data = json.load(f)
         markers = len(data.get("markers", []))
-        click.echo(f"Analysis:      {markers} markers identified")
+        click.echo(f"Analysis:       {markers} markers identified")
     else:
-        click.echo("Analysis:      Not run")
+        click.echo("Analysis:       Not run")
 
     # Styleguide
     if STYLEGUIDE_PATH.exists():
-        click.echo(f"Styleguide:    Ready at {STYLEGUIDE_PATH}")
+        click.echo(f"Styleguide:     Ready")
     else:
-        click.echo("Styleguide:    Not generated")
+        click.echo("Styleguide:     Not generated")
 
-    click.echo("-" * 40)
+    # Model comparison
+    if COMPARISON_REPORT_PATH.exists():
+        click.echo(f"Comparison:     Ready")
+    else:
+        click.echo("Comparison:     Not generated")
+
+    click.echo("-" * 50)
 
 
 @cli.command()
@@ -274,6 +396,19 @@ def clean():
             click.echo(f"Removed {path}")
 
     click.echo("Clean complete.")
+
+
+@cli.command("list-models")
+def list_models():
+    """List available Claude models for sampling."""
+    from generate_samples import AVAILABLE_MODELS as models
+
+    click.echo("Available models:")
+    click.echo("-" * 40)
+    for short_name, full_id in models.items():
+        click.echo(f"  {short_name:12}  {full_id}")
+    click.echo("-" * 40)
+    click.echo("\nUsage: python run_pipeline.py generate-samples --model <name>")
 
 
 if __name__ == "__main__":
