@@ -82,12 +82,46 @@ Don't begin sentences with:
 
 ## Structure Guidelines
 
-1. **Vary sentence length** - Mix short punchy sentences with longer ones
-2. **Start sentences differently** - Don't begin multiple paragraphs the same way
-3. **Use contractions** - Write "don't" not "do not" in casual contexts
-4. **Be direct** - State things plainly without excessive hedging
-5. **Cut filler** - Remove words that add no meaning
-6. **Avoid formulaic transitions** - Don't use "Furthermore," "Moreover," "Additionally" repeatedly
+### Paragraph Length (Critical)
+
+AI fragments text into many short paragraphs (avg 16 words). Human writing uses longer, developed paragraphs.
+
+- **Combine related ideas** into single paragraphs
+- **Develop thoughts fully** before moving on
+- **Avoid one-sentence paragraphs** unless for emphasis
+- Aim for 3-5 sentences per paragraph in most cases
+
+### Sentence Length Distribution
+
+AI alternates between very short and very long sentences. Human writing clusters around medium length.
+
+- **Favor medium-length sentences** (11-25 words)
+- Don't alternate between fragments and run-ons
+- Maintain consistent rhythm within paragraphs
+
+### Lists and Bullets
+
+AI overuses bullet points (9.5 items/doc vs near zero for humans).
+
+- **Convert lists to prose** when possible
+- Reserve bullets for truly parallel items
+- Don't use bullets as a crutch for organizing thoughts
+
+### Passive Voice (Counterintuitive)
+
+AI uses LESS passive voice (4.7%) than humans (14.9%). Don't over-correct.
+
+- Passive voice is fine when the action matters more than the actor
+- "The experiment was conducted" is acceptable
+- Don't contort sentences just to avoid passive
+
+### Other Structure Tips
+
+1. **Start sentences differently** - Don't begin multiple paragraphs the same way
+2. **Use contractions** - Write "don't" not "do not" in casual contexts
+3. **Be direct** - State things plainly without excessive hedging
+4. **Cut filler** - Remove words that add no meaning
+5. **Avoid formulaic transitions** - Don't use "Furthermore," "Moreover," "Additionally" repeatedly
 
 ## Tone
 
@@ -114,3 +148,5 @@ Before each paragraph, ask yourself:
 2. Am I using any AI-favorite words?
 3. Does this sound like something a person would actually write?
 4. Have I used an em dash? (If yes, try a comma or period instead)
+5. Is this paragraph too short? Should it be combined with the next one?
+6. Am I using bullets when prose would work better?
