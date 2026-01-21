@@ -144,14 +144,14 @@ jobs:
           if [ -f prose-report.json ]; then
             # Check if any files failed
             FAILING=$(python3 -c "
-            import json
-            with open('prose-report.json') as f:
-                data = json.load(f)
-            if 'summary' in data:
-                print(data['summary']['failing'])
-            else:
-                print(0 if data.get('score', 100) >= 60 else 1)
-            ")
+          import json
+          with open('prose-report.json') as f:
+              data = json.load(f)
+          if 'summary' in data:
+              print(data['summary']['failing'])
+          else:
+              print(0 if data.get('score', 100) >= 60 else 1)
+          ")
             if [ "$FAILING" -gt 0 ]; then
               echo "::error::$FAILING file(s) failed prose check"
               exit 1
