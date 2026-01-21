@@ -2,6 +2,10 @@
 
 A pipeline to analyze Claude model writing patterns and generate a personal styleguide for avoiding common LLM-isms in your own writing.
 
+[![PyPI version](https://badge.fury.io/py/prose-check.svg)](https://badge.fury.io/py/prose-check)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Overview
 
 This tool statistically compares AI-generated text against human writing to identify distinctive patterns. The output is an actionable styleguide with:
@@ -13,7 +17,35 @@ This tool statistically compares AI-generated text against human writing to iden
 
 Now includes multi-model comparison to track how patterns have evolved across Claude versions.
 
+## Installation
+
+**Quick install via pip:**
+
+```bash
+pip install prose-check
+```
+
+**Or install from source:**
+
+```bash
+git clone https://github.com/shandley/claude-style-guide.git
+cd claude-style-guide
+pip install -e .
+```
+
 ## Quick Start
+
+**Check your writing for AI patterns:**
+
+```bash
+# After pip install
+prose-check document.md
+
+# Or run directly
+python check_writing.py document.md
+```
+
+**Run the full analysis pipeline** (generates custom markers from Claude samples):
 
 ```bash
 # Setup
@@ -283,6 +315,8 @@ opus-styleguide/
 │   ├── analyze.py             # Statistical analysis
 │   ├── compare.py             # Cross-model comparison
 │   └── report.py              # Styleguide generation
+├── tests/
+│   └── test_check_writing.py  # Unit tests (30 tests)
 ├── .claude/skills/
 │   └── human-writing/         # Claude Code skill
 │       ├── SKILL.md           # Writing guidelines
@@ -293,6 +327,7 @@ opus-styleguide/
 ├── results/                   # Output reports
 ├── run_pipeline.py            # CLI entry point
 ├── check_writing.py           # Document checker CLI
+├── pyproject.toml             # Package configuration
 ├── .prose-check.yaml          # Default config
 ├── .pre-commit-hooks.yaml     # Pre-commit hook definition
 └── requirements.txt
