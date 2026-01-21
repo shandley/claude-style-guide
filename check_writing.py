@@ -4,17 +4,24 @@ Writing Checker - Scan your documents for LLM-isms.
 
 Usage:
     python check_writing.py document.md
+    python check_writing.py document.docx
     python check_writing.py document.md --verbose
     python check_writing.py document.md --json
     cat document.md | python check_writing.py --stdin
+
+Supported formats: .txt, .md, .docx
 """
 
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from collections import defaultdict
+
+# Supported file extensions
+SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".docx"}
 
 # Path to markers file
 MARKERS_PATH = Path(__file__).parent / "results" / "markers.json"
@@ -70,6 +77,49 @@ def load_markers() -> dict:
 
     with open(MARKERS_PATH) as f:
         return json.load(f)
+
+
+def read_docx(path: Path) -> str:
+    """Extract text from a .docx file using textutil (macOS) or python-docx."""
+    # Try textutil first (macOS built-in)
+    try:
+        result = subprocess.run(
+            ["textutil", "-convert", "txt", "-stdout", str(path)],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout
+    except FileNotFoundError:
+        pass  # textutil not available, try python-docx
+    except subprocess.CalledProcessError as e:
+        print(f"Error converting docx: {e.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+    # Fall back to python-docx if available
+    try:
+        from docx import Document
+        doc = Document(str(path))
+        return "\n".join(para.text for para in doc.paragraphs)
+    except ImportError:
+        print("Error: Cannot read .docx files.", file=sys.stderr)
+        print("Install python-docx: pip install python-docx", file=sys.stderr)
+        sys.exit(1)
+
+
+def read_file(path: Path) -> str:
+    """Read text from a file, handling different formats."""
+    suffix = path.suffix.lower()
+
+    if suffix not in SUPPORTED_EXTENSIONS:
+        print(f"Error: Unsupported file type: {suffix}", file=sys.stderr)
+        print(f"Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}", file=sys.stderr)
+        sys.exit(1)
+
+    if suffix == ".docx":
+        return read_docx(path)
+    else:
+        return path.read_text()
 
 
 def get_severity(log_odds: float) -> str:
@@ -315,7 +365,7 @@ Examples:
         if not path.exists():
             print(f"Error: File not found: {args.file}", file=sys.stderr)
             sys.exit(1)
-        text = path.read_text()
+        text = read_file(path)
         filename = args.file
     else:
         parser.print_help()
