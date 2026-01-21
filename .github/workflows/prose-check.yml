@@ -18,6 +18,9 @@ jobs:
   check:
     name: Check prose for AI patterns
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout repository
