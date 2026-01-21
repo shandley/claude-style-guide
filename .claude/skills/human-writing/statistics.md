@@ -67,8 +67,37 @@ These classic LLM-isms appear to have been reduced in newer models:
 - vibrant
 - myriad
 
+## Multi-Model Comparison
+
+Comparison of 50 samples from each model (January 2026):
+
+### Punctuation by Model (per 1k chars)
+
+| Punctuation | Human | Haiku 3 | Sonnet 3.7 | Sonnet 4 | Opus 4.5 |
+|-------------|-------|---------|------------|----------|----------|
+| Em dash | 0.28 | 0.00 | 0.23 | 0.25 | 4.78 |
+| Colon | 1.01 | 2.43 | 3.90 | 4.68 | 4.11 |
+| Semicolon | 0.23 | 0.01 | 0.30 | 0.41 | 0.69 |
+
+Key insight: Em dash overuse is Opus 4.5 specific. Other models are at/below human levels.
+
+### Word Patterns by Model (per 10k chars)
+
+| Word | Human | Haiku 3 | Sonnet 3.7 | Sonnet 4 | Opus 4.5 |
+|------|-------|---------|------------|----------|----------|
+| comprehensive | 0.06 | 2.24 | 1.71 | 2.15 | 1.39 |
+| robust | 0.03 | 1.25 | 0.19 | 0.22 | 0.09 |
+| nuanced | 0.00 | 0.00 | 0.30 | 0.15 | 0.04 |
+| paradigm | 0.01 | 0.09 | 0.28 | 0.44 | 0.18 |
+
+Key insights:
+- Haiku 3 overuses "robust" (43x) and "comprehensive" (40x)
+- Sonnet 4 overuses "nuanced" (56x) and "paradigm" (37x)
+- Opus 4.5 has relatively lower word overuse but worst em dash problem
+
 ## Source
 
 Analysis conducted using log-odds ratios comparing:
 - 200 Claude Opus 4.5 samples (47,012 words)
+- 50 samples each from Sonnet 4, Sonnet 3.7, Haiku 3
 - 6,000 human texts from Wikipedia, OpenWebText, C4 (1,208,418 words)

@@ -8,15 +8,31 @@ argument-hint: [topic or instructions]
 
 When writing prose content, follow these guidelines to produce natural, human-like writing.
 
+## Model-Specific Patterns
+
+Different Claude models have different writing quirks:
+
+| Pattern | Opus 4.5 | Sonnet 4 | Sonnet 3.7 | Haiku 3 |
+|---------|----------|----------|------------|---------|
+| Em dash overuse | **16.8x** | 0.9x | 0.8x | 0.0x |
+| "robust" | 3.1x | 7.7x | 6.5x | **43.2x** |
+| "comprehensive" | 24.4x | 37.9x | 30.1x | **39.5x** |
+| "nuanced" | 17.0x | **56.1x** | high | 0x |
+| "paradigm" | 15.1x | **37.4x** | 24.0x | 7.5x |
+
+*Values show ratio vs human baseline. Bold = worst offender.*
+
+**Key takeaway:** Em dash overuse is primarily an Opus 4.5 issue. Other models have different word preferences to watch.
+
 ## Punctuation
 
-Avoid overusing these punctuation marks (AI uses them 3-17x more than humans):
+Avoid overusing these punctuation marks:
 
-| Avoid | Use Instead |
-|-------|-------------|
-| Em dash (—) | Commas, periods, or parentheses |
-| Semicolons | Two separate sentences |
-| Colons for lists | Integrate into prose or use simpler structure |
+| Avoid | Use Instead | Notes |
+|-------|-------------|-------|
+| Em dash (—) | Commas, periods, or parentheses | Mainly Opus 4.5 issue (16.8x human) |
+| Semicolons | Two separate sentences | Opus 4.5 uses 3x human rate |
+| Colons for lists | Integrate into prose | All models use 2-5x human rate |
 
 ## Words to Avoid
 
