@@ -100,6 +100,20 @@ Output includes a score (0-100, higher = more human-like) and flags for:
 4. **Analyze** - Computes log-odds ratios to find statistically significant patterns
 5. **Report** - Generates markdown styleguide with actionable guidance
 
+## Analysis Capabilities
+
+The analyzer examines multiple dimensions of writing style:
+
+| Analysis | What It Detects |
+|----------|-----------------|
+| **Lexical** | Overused words, bigrams, trigrams |
+| **Punctuation** | Em dash, colon, semicolon frequency |
+| **Sentence starters** | Formulaic openings ("This document...", "Comprehensive...") |
+| **Transitions** | Formal vs casual transition word usage |
+| **Hedging** | Qualifying words (typically, often, sometimes) |
+| **Structure** | Paragraph length, list density, sentence distribution |
+| **Passive voice** | Passive construction frequency |
+
 ## Output
 
 ### results/styleguide.md
@@ -156,6 +170,20 @@ Other models are at or below human levels for em dashes.
 - "fundamentally" (17x)
 - "nuanced" (17x)
 - "paradigm" (15x)
+
+### Deep Analysis Findings
+
+**Sentence Starters** - AI overuses formulaic openings:
+- "This document..." (623x)
+- "Comprehensive..." (680x)
+- "Introduction..." (58x)
+
+**Transitions (Counterintuitive!)** - AI uses FEWER transitions than humans:
+- Formal: AI 0.3 vs Human 0.9 per 100 sentences
+- Only "conversely" (50x) and "nevertheless" (8x) are AI-overused
+
+**Hedging Words** - AI overuses qualifying language:
+- "typically" (9.6x), "often" (4.9x), "sometimes" (4.2x), "usually" (3.4x)
 
 ## Requirements
 

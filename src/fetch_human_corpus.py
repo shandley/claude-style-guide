@@ -310,7 +310,7 @@ def main(
     skip_existing: bool = True
 ) -> dict:
     """Main entry point."""
-    print(f"Fetching human corpus...")
+    print("Fetching human corpus...")
     print(f"  Output: {output_path}")
     print(f"  Target samples: {num_samples}")
     print()

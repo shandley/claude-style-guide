@@ -335,7 +335,6 @@ def generate_styleguide(
         lines.append("### Paragraph Structure")
         lines.append("")
         opus_para = summary_stats.get("opus_paragraph_stats", {})
-        human_para = summary_stats.get("human_paragraph_stats", {})
 
         if opus_para:
             lines.append(f"- AI average: **{opus_para.get('avg_para_length_words', 0)} words** per paragraph")

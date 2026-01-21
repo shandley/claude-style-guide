@@ -9,7 +9,7 @@ import json
 import math
 import re
 import statistics
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 from typing import NamedTuple
 
@@ -458,9 +458,9 @@ def analyze_sentence_length_distribution(
         cv = (stdev / mean * 100) if mean > 0 else 0
 
         # Distribution buckets
-        short = sum(1 for l in lengths if l <= 10)
-        medium = sum(1 for l in lengths if 10 < l <= 25)
-        long = sum(1 for l in lengths if l > 25)
+        short = sum(1 for length in lengths if length <= 10)
+        medium = sum(1 for length in lengths if 10 < length <= 25)
+        long = sum(1 for length in lengths if length > 25)
         total = len(lengths)
 
         # Percentiles
@@ -491,7 +491,7 @@ def analyze_sentence_length_distribution(
     human_stats = compute_distribution_stats(human_lengths)
 
     if verbose:
-        print(f"\n  Sentence length distribution:")
+        print("\n  Sentence length distribution:")
         print(f"    Opus CV: {opus_stats.get('coefficient_of_variation', 0)}% (lower = more uniform)")
         print(f"    Human CV: {human_stats.get('coefficient_of_variation', 0)}%")
 
@@ -544,7 +544,7 @@ def detect_passive_voice(
     human_pct = (human_passive / human_total * 100) if human_total > 0 else 0
 
     if verbose:
-        print(f"\n  Passive voice usage:")
+        print("\n  Passive voice usage:")
         print(f"    Opus: {opus_pct:.1f}% of sentences")
         print(f"    Human: {human_pct:.1f}% of sentences")
 
@@ -609,7 +609,7 @@ def analyze_paragraph_patterns(
     human_stats = get_paragraph_stats(human_texts)
 
     if verbose:
-        print(f"\n  Paragraph patterns:")
+        print("\n  Paragraph patterns:")
         print(f"    Opus avg para length: {opus_stats.get('avg_para_length_words', 0)} words (CV: {opus_stats.get('para_length_cv', 0)}%)")
         print(f"    Human avg para length: {human_stats.get('avg_para_length_words', 0)} words (CV: {human_stats.get('para_length_cv', 0)}%)")
 
@@ -1174,7 +1174,7 @@ def run_analysis(
         json.dump(results, f, indent=2)
 
     if verbose:
-        print(f"\nAnalysis complete!")
+        print("\nAnalysis complete!")
         print(f"  Total markers found: {len(all_markers)}")
         print(f"  Results saved to: {output_path}")
 

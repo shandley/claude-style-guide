@@ -6,14 +6,12 @@ samples from multiple models against the same human baseline.
 """
 
 import json
-import math
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 from datetime import datetime
 
 import nltk
-from tqdm import tqdm
 
 from generate_samples import AVAILABLE_MODELS
 
@@ -358,13 +356,13 @@ def main(
     report_path = output_dir / "model_comparison.md"
 
     # Run comparison
-    results = compare_models(data_dir, human_path, comparison_path, verbose)
+    compare_models(data_dir, human_path, comparison_path, verbose)
 
     # Generate report
     if comparison_path.exists():
         generate_comparison_report(comparison_path, report_path, verbose)
 
-    print(f"\nComparison complete!")
+    print("\nComparison complete!")
     print(f"  Data: {comparison_path}")
     print(f"  Report: {report_path}")
 

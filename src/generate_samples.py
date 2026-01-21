@@ -6,17 +6,16 @@ Supports multiple Claude model versions for comparison.
 """
 
 import json
-import os
 import time
 from datetime import datetime
 from pathlib import Path
 
 import anthropic
 from dotenv import load_dotenv
+from tqdm import tqdm
 
 # Load environment variables from .env file
 load_dotenv()
-from tqdm import tqdm
 
 # Available models for comparison
 AVAILABLE_MODELS = {
@@ -221,7 +220,7 @@ def main(
     """Main entry point."""
     model_id = get_model_id(model)
 
-    print(f"Generating samples...")
+    print("Generating samples...")
     print(f"  Model: {model} ({model_id})")
     print(f"  Prompts: {prompts_path}")
     print(f"  Output: {output_path}")
@@ -238,7 +237,7 @@ def main(
         verbose=verbose
     )
 
-    print(f"\nGeneration complete:")
+    print("\nGeneration complete:")
     print(f"  Generated: {stats['generated']}")
     print(f"  Skipped: {stats['skipped']}")
     print(f"  Failed: {stats['failed']}")

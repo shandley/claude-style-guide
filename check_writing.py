@@ -191,8 +191,6 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
         }
     }
 
-    text_lower = text.lower()
-
     # Check each marker
     for marker in markers:
         item = marker["item"]
@@ -383,9 +381,9 @@ def analyze_structure(text: str) -> dict:
     avg_sentence_words = sum(sentence_lengths) / len(sentence_lengths) if sentence_lengths else 0
 
     # Categorize sentences
-    short_sentences = sum(1 for l in sentence_lengths if l <= 10)
-    medium_sentences = sum(1 for l in sentence_lengths if 10 < l <= 25)
-    long_sentences = sum(1 for l in sentence_lengths if l > 25)
+    short_sentences = sum(1 for length in sentence_lengths if length <= 10)
+    medium_sentences = sum(1 for length in sentence_lengths if 10 < length <= 25)
+    long_sentences = sum(1 for length in sentence_lengths if length > 25)
     total_sentences = len(sentence_lengths)
 
     return {
@@ -458,7 +456,7 @@ def print_report(findings: dict, filename: str, verbose: bool = False):
         print("-" * 60)
         print(f"  Paragraphs: {struct['para_count']} (avg {struct['avg_para_words']:.0f} words each)")
         if struct['avg_para_words'] < MIN_HEALTHY_PARA_LENGTH:
-            print(f"    WARNING: Short paragraphs suggest AI (aim for 40+ words)")
+            print("    WARNING: Short paragraphs suggest AI (aim for 40+ words)")
         print(f"  Sentences: {struct['sentence_count']} (avg {struct['avg_sentence_words']:.0f} words each)")
         print(f"    Short (1-10): {struct['pct_short_sentences']:.0f}%  Medium (11-25): {struct['pct_medium_sentences']:.0f}%  Long (26+): {struct['pct_long_sentences']:.0f}%")
         if struct['list_items'] > 0:

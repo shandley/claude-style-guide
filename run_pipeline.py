@@ -370,13 +370,13 @@ def status():
 
     # Styleguide
     if STYLEGUIDE_PATH.exists():
-        click.echo(f"Styleguide:     Ready")
+        click.echo("Styleguide:     Ready")
     else:
         click.echo("Styleguide:     Not generated")
 
     # Model comparison
     if COMPARISON_REPORT_PATH.exists():
-        click.echo(f"Comparison:     Ready")
+        click.echo("Comparison:     Ready")
     else:
         click.echo("Comparison:     Not generated")
 
