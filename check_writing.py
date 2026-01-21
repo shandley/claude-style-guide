@@ -66,6 +66,87 @@ MARKDOWN_PATTERNS = {
     ">",
 }
 
+# Training data artifacts (character names, etc.) - always exclude
+TRAINING_ARTIFACTS = {
+    "jenna", "marcus", "margaret", "chen", "sarah", "mike", "david",
+    "alex", "tom", "lisa", "john", "james", "emma", "emily",
+    "**marcus**", "**jenna**", "**margaret:**", "**the",
+}
+
+# Technical terms - exclude when in technical context
+TECHNICAL_TERMS = {
+    # Languages & frameworks
+    "python", "javascript", "typescript", "java", "rust", "go", "ruby",
+    "react", "vue", "angular", "node", "django", "flask", "rails",
+    "bash", "shell", "powershell", "perl", "php", "scala", "kotlin",
+    # Infrastructure & tools
+    "docker", "kubernetes", "aws", "azure", "gcp", "linux", "unix",
+    "git", "github", "gitlab", "npm", "yarn", "pip", "cargo",
+    "terraform", "ansible", "jenkins", "circleci", "travis",
+    # Concepts
+    "api", "apis", "rest", "graphql", "sql", "nosql", "json", "xml",
+    "html", "css", "http", "https", "url", "uri", "oauth", "jwt",
+    "microservices", "monolith", "serverless", "devops", "ci", "cd",
+    "frontend", "backend", "fullstack", "database", "cache", "cdn",
+    "tdd", "bdd", "agile", "scrum", "sprint", "kanban",
+    # AI/ML specific
+    "ai", "ml", "llm", "gpt", "nlp", "neural", "model", "training",
+    "pytorch", "tensorflow", "keras", "sklearn", "pandas", "numpy",
+    # Documentation terms
+    "readme", "changelog", "documentation", "docs", "wiki",
+    "technical", "specification", "requirements", "architecture",
+}
+
+# Generic programming terms - exclude when in technical context
+PROGRAMMING_TERMS = {
+    "code", "function", "method", "class", "variable", "parameter",
+    "argument", "return", "loop", "array", "object", "string",
+    "integer", "boolean", "null", "undefined", "import", "export",
+    "module", "package", "library", "framework", "dependency",
+    "error", "errors", "exception", "bug", "bugs", "debug",
+    "test", "tests", "testing", "unit", "integration",
+    "deploy", "deployment", "build", "compile", "runtime",
+    "server", "client", "request", "response", "endpoint",
+    "query", "mutation", "schema", "type", "interface",
+    "pattern", "patterns", "architecture", "design",
+    "config", "configuration", "environment", "production", "staging",
+    "log", "logs", "logging", "monitor", "monitoring",
+    "async", "await", "promise", "callback", "event",
+    # Database terms
+    "postgresql", "mysql", "mongodb", "redis", "sqlite", "oracle",
+    "table", "column", "row", "index", "migration", "seed",
+    # Auth terms
+    "authentication", "authorization", "token", "tokens", "session",
+    "credentials", "password", "username", "login", "logout",
+    "permission", "permissions", "role", "roles", "user", "users",
+    # Common technical phrases (as single words)
+    "timestamp", "timeout", "expiration", "pagination", "validation",
+    "serialization", "deserialization", "middleware", "handler",
+    "controller", "service", "repository", "factory", "singleton",
+    "requests", "responses", "headers", "payload", "body",
+    # Additional technical terms
+    "context", "contexts", "conventions", "convention", "document", "documents",
+    "documentation", "limiting", "limits", "limit", "specified", "specify",
+    "parameters", "values", "value", "options", "option", "settings",
+    "format", "formats", "output", "input", "inputs", "outputs",
+    "process", "processes", "processing", "handle", "handling",
+}
+
+# Technical bigrams/trigrams to exclude
+TECHNICAL_PHRASES = {
+    "error handling", "rate limiting", "rate limit", "rest api", "api endpoint",
+    "api endpoints", "user id", "user ids", "access token", "access tokens",
+    "http status", "status code", "status codes", "query string", "request body",
+    "response body", "json response", "json responses", "the api", "the backend",
+    "the frontend", "the database", "the server", "the client", "this document",
+    "this api", "this endpoint", "this method", "this function", "this class",
+    "error code", "error codes", "error message", "error messages",
+    "best practices", "use case", "use cases", "end user", "end users",
+    "to users", "for users", "by users", "the user", "a user", "each user",
+    "data model", "data models", "file format", "return value", "return values",
+    "input data", "output data", "default value", "default values",
+}
+
 # Categories to check
 CATEGORIES = {
     "phrase_hedging": "Hedging",
@@ -131,6 +212,7 @@ DEFAULT_CONFIG = {
     "min_score": 60,
     "exclude": [],
     "ignore_patterns": [],
+    "technical": True,  # Exclude technical terms (for tech docs)
 }
 
 
@@ -171,6 +253,8 @@ def load_config(config_path: Optional[Path] = None) -> dict:
             config["exclude"] = file_config["exclude"]
         if "ignore_patterns" in file_config:
             config["ignore_patterns"] = file_config["ignore_patterns"]
+        if "technical" in file_config:
+            config["technical"] = file_config["technical"]
 
     return config
 
@@ -249,9 +333,15 @@ def get_severity(log_odds: float) -> str:
     return "low"
 
 
-def check_text(text: str, markers: list, verbose: bool = False) -> dict:
+def check_text(text: str, markers: list, verbose: bool = False, technical: bool = True) -> dict:
     """
     Check text for LLM patterns.
+
+    Args:
+        text: Text to analyze
+        markers: List of marker patterns from markers.json
+        verbose: Include low-severity findings
+        technical: Exclude technical/programming terms (default True)
 
     Returns dict with findings.
     """
@@ -269,6 +359,11 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
         }
     }
 
+    # Build exclusion set based on context
+    excluded_patterns = set(MARKDOWN_PATTERNS) | set(TRAINING_ARTIFACTS)
+    if technical:
+        excluded_patterns |= TECHNICAL_TERMS | PROGRAMMING_TERMS | TECHNICAL_PHRASES
+
     # Track seen patterns to avoid duplicates (keep highest log_odds)
     seen_patterns = {}  # pattern_lower -> (severity, index_in_list, log_odds)
 
@@ -278,8 +373,9 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
         marker_type = marker["type"]
         log_odds = marker["log_odds"]
 
-        # Skip markdown syntax (not writing style issues)
-        if item in MARKDOWN_PATTERNS or item.strip() in MARKDOWN_PATTERNS:
+        # Skip excluded patterns (markdown, training artifacts, tech terms)
+        item_lower = item.lower().strip()
+        if item in excluded_patterns or item_lower in excluded_patterns:
             continue
 
         # Skip low-ratio items unless verbose
@@ -370,16 +466,22 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
     findings["stats"]["structural"] = structural
 
     # Paragraph fragmentation check
-    if structural["avg_para_words"] > 0 and structural["avg_para_words"] < MIN_HEALTHY_PARA_LENGTH:
-        severity = "high" if structural["avg_para_words"] < 25 else "medium"
+    # In technical mode, use lower threshold (short paragraphs are normal in tech docs)
+    para_threshold = 20 if technical else MIN_HEALTHY_PARA_LENGTH
+    if structural["avg_para_words"] > 0 and structural["avg_para_words"] < para_threshold:
+        # In technical mode, always treat as medium severity
+        if technical:
+            severity = "medium"
+        else:
+            severity = "high" if structural["avg_para_words"] < 25 else "medium"
         findings[severity].append({
             "pattern": "Short paragraphs",
             "type": "structure",
             "count": structural["para_count"],
             "severity": severity,
-            "ratio": MIN_HEALTHY_PARA_LENGTH / structural["avg_para_words"],
+            "ratio": para_threshold / structural["avg_para_words"],
             "alternative": "Combine related ideas into longer paragraphs",
-            "context": f"Avg {structural['avg_para_words']:.0f} words/para (aim for 40+)"
+            "context": f"Avg {structural['avg_para_words']:.0f} words/para (aim for {para_threshold}+)"
         })
         if severity == "high":
             findings["stats"]["high_severity"] += 1
@@ -536,7 +638,7 @@ def get_grade(score: int) -> str:
         return "High AI signal - Many LLM patterns"
 
 
-def format_text(findings: dict, score: int, filename: str, verbose: bool = False) -> str:
+def format_text(findings: dict, score: int, filename: str, verbose: bool = False, technical: bool = True) -> str:
     """Format findings as plain text."""
     lines = []
     stats = findings["stats"]
@@ -556,14 +658,15 @@ def format_text(findings: dict, score: int, filename: str, verbose: bool = False
     lines.append("")
 
     # Structural metrics
+    para_threshold = 20 if technical else MIN_HEALTHY_PARA_LENGTH
     if "structural" in stats:
         struct = stats["structural"]
         lines.append("-" * 60)
         lines.append("STRUCTURE ANALYSIS")
         lines.append("-" * 60)
         lines.append(f"  Paragraphs: {struct['para_count']} (avg {struct['avg_para_words']:.0f} words each)")
-        if struct['avg_para_words'] < MIN_HEALTHY_PARA_LENGTH:
-            lines.append("    WARNING: Short paragraphs suggest AI (aim for 40+ words)")
+        if struct['avg_para_words'] < para_threshold:
+            lines.append(f"    WARNING: Short paragraphs suggest AI (aim for {para_threshold}+ words)")
         lines.append(f"  Sentences: {struct['sentence_count']} (avg {struct['avg_sentence_words']:.0f} words each)")
         lines.append(f"    Short (1-10): {struct['pct_short_sentences']:.0f}%  Medium (11-25): {struct['pct_medium_sentences']:.0f}%  Long (26+): {struct['pct_long_sentences']:.0f}%")
         if struct['list_items'] > 0:
@@ -927,10 +1030,10 @@ def generate_simple_html(findings: dict, score: int, filename: str) -> str:
     return html
 
 
-def print_report(findings: dict, filename: str, verbose: bool = False):
+def print_report(findings: dict, filename: str, verbose: bool = False, technical: bool = True):
     """Print human-readable report (legacy wrapper)."""
     score = calculate_score(findings)
-    print(format_text(findings, score, filename, verbose))
+    print(format_text(findings, score, filename, verbose, technical))
 
 
 def print_json(findings: dict, filename: str):
@@ -1094,10 +1197,10 @@ def interactive_mode(text: str, findings: dict, filepath: str) -> str:
     print(f"Changes made: {changes_made}")
 
     if changes_made > 0:
-        # Recalculate score
+        # Recalculate score (use default technical=True for interactive mode)
         data = load_markers()
         markers = data.get("markers", [])
-        new_findings = check_text(modified_text, markers)
+        new_findings = check_text(modified_text, markers, technical=True)
         new_score = calculate_score(new_findings)
         old_score = calculate_score(findings)
 
@@ -1145,7 +1248,8 @@ def process_single_file(
     except Exception as e:
         return {"filename": filepath, "error": str(e)}
 
-    findings = check_text(text, markers, verbose=verbose)
+    technical = config.get("technical", True)
+    findings = check_text(text, markers, verbose=verbose, technical=technical)
 
     # Filter out ignored patterns
     ignore_patterns = config.get("ignore_patterns", [])
@@ -1171,7 +1275,7 @@ def process_single_file(
             path.write_text(modified_text)
             print(f"Saved {changes} changes to {filepath}")
             # Re-analyze
-            findings = check_text(modified_text, markers, verbose=verbose)
+            findings = check_text(modified_text, markers, verbose=verbose, technical=technical)
             score = calculate_score(findings)
 
     return {
@@ -1221,6 +1325,11 @@ Examples:
         type=int,
         help="Minimum score to pass (overrides config)"
     )
+    parser.add_argument(
+        "--no-technical",
+        action="store_true",
+        help="Don't exclude technical terms (stricter checking for prose)"
+    )
     # Legacy support for --json
     parser.add_argument("--json", "-j", action="store_true", help=argparse.SUPPRESS)
 
@@ -1234,6 +1343,8 @@ Examples:
     config = load_config(args.config)
     if args.min_score is not None:
         config["min_score"] = args.min_score
+    if args.no_technical:
+        config["technical"] = False
 
     min_score = config["min_score"]
 
@@ -1252,7 +1363,8 @@ Examples:
     # Handle stdin
     if args.stdin:
         text = sys.stdin.read()
-        findings = check_text(text, markers, verbose=args.verbose)
+        technical = config.get("technical", True)
+        findings = check_text(text, markers, verbose=args.verbose, technical=technical)
         score = calculate_score(findings)
 
         if args.format == "json":
@@ -1260,7 +1372,7 @@ Examples:
         elif args.format == "html":
             print(format_html(findings, score, "<stdin>"))
         else:
-            print(format_text(findings, score, "<stdin>", args.verbose))
+            print(format_text(findings, score, "<stdin>", args.verbose, technical))
 
         sys.exit(0 if score >= min_score else 1)
 
@@ -1350,8 +1462,9 @@ Examples:
             print("</table></body></html>")
     else:
         # Text format
+        technical = config.get("technical", True)
         for r in valid_results:
-            print(format_text(r["findings"], r["score"], r["filename"], args.verbose))
+            print(format_text(r["findings"], r["score"], r["filename"], args.verbose, technical))
             if len(valid_results) > 1:
                 print()  # Blank line between files
 

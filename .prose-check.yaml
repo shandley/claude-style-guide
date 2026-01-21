@@ -5,6 +5,11 @@
 # 90+ = Excellent, 75-89 = Good, 60-74 = Fair, 40-59 = Needs work, <40 = High AI signal
 min_score: 60
 
+# Technical mode (default: true)
+# When true, excludes technical/programming terms from checks
+# Set to false for stricter prose checking (essays, articles, etc.)
+technical: true
+
 # Files/patterns to exclude from checking
 # Uses glob patterns (fnmatch style)
 exclude:
