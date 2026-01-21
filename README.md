@@ -2,7 +2,6 @@
 
 A pipeline to analyze Claude model writing patterns and generate a personal styleguide for avoiding common LLM-isms in your own writing.
 
-[![PyPI version](https://badge.fury.io/py/prose-check.svg)](https://badge.fury.io/py/prose-check)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -19,13 +18,13 @@ Now includes multi-model comparison to track how patterns have evolved across Cl
 
 ## Installation
 
-**Quick install via pip:**
+**Install from GitHub:**
 
 ```bash
-pip install prose-check
+pip install git+https://github.com/shandley/claude-style-guide.git
 ```
 
-**Or install from source:**
+**Or clone and install locally:**
 
 ```bash
 git clone https://github.com/shandley/claude-style-guide.git
