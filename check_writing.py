@@ -30,6 +30,12 @@ MARKERS_PATH = Path(__file__).parent / "results" / "markers.json"
 HIGH_SEVERITY = 2.5
 MEDIUM_SEVERITY = 1.5
 
+# Structural thresholds (based on analysis)
+# AI avg: 16.2 words/para, Human avg: ~200 words/para
+MIN_HEALTHY_PARA_LENGTH = 40  # Below this is AI-like
+# AI avg: 9.5 list items/doc, Human avg: ~0
+MAX_HEALTHY_LIST_ITEMS_PER_100_WORDS = 1.0
+
 # Markdown syntax patterns to ignore (not writing style issues)
 MARKDOWN_PATTERNS = {
     "##", "###", "####", "#####",
@@ -239,7 +245,85 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
             findings["stats"]["high_severity"] += 1
             findings["stats"]["patterns_found"] += 1
 
+    # Check structural patterns
+    structural = analyze_structure(text)
+    findings["stats"]["structural"] = structural
+
+    # Paragraph fragmentation check
+    if structural["avg_para_words"] > 0 and structural["avg_para_words"] < MIN_HEALTHY_PARA_LENGTH:
+        severity = "high" if structural["avg_para_words"] < 25 else "medium"
+        findings[severity].append({
+            "pattern": "Short paragraphs",
+            "type": "structure",
+            "count": structural["para_count"],
+            "severity": severity,
+            "ratio": MIN_HEALTHY_PARA_LENGTH / structural["avg_para_words"],
+            "alternative": "Combine related ideas into longer paragraphs",
+            "context": f"Avg {structural['avg_para_words']:.0f} words/para (aim for 40+)"
+        })
+        if severity == "high":
+            findings["stats"]["high_severity"] += 1
+        else:
+            findings["stats"]["medium_severity"] += 1
+        findings["stats"]["patterns_found"] += 1
+
+    # List overuse check
+    total_words = findings["stats"]["total_words"]
+    if total_words > 0:
+        list_density = structural["list_items"] / total_words * 100
+        if list_density > MAX_HEALTHY_LIST_ITEMS_PER_100_WORDS:
+            findings["medium"].append({
+                "pattern": "Bullet point overuse",
+                "type": "structure",
+                "count": structural["list_items"],
+                "severity": "medium",
+                "ratio": list_density / MAX_HEALTHY_LIST_ITEMS_PER_100_WORDS,
+                "alternative": "Convert lists to prose paragraphs",
+                "context": f"{structural['list_items']} list items in {total_words} words"
+            })
+            findings["stats"]["medium_severity"] += 1
+            findings["stats"]["patterns_found"] += 1
+
     return findings
+
+
+def analyze_structure(text: str) -> dict:
+    """Analyze paragraph and list structure."""
+    # Split into paragraphs (by blank lines)
+    paragraphs = [p.strip() for p in re.split(r'\n\s*\n', text) if p.strip()]
+
+    # Calculate paragraph stats
+    para_lengths = [len(p.split()) for p in paragraphs if len(p.split()) > 0]
+    avg_para_words = sum(para_lengths) / len(para_lengths) if para_lengths else 0
+
+    # Count list items (bullets and numbered)
+    list_items = len(re.findall(r'^\s*[-•*]\s', text, re.MULTILINE))
+    list_items += len(re.findall(r'^\s*\d+\.\s', text, re.MULTILINE))
+
+    # Sentence analysis
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if s.strip()]
+    sentence_lengths = [len(s.split()) for s in sentences]
+
+    avg_sentence_words = sum(sentence_lengths) / len(sentence_lengths) if sentence_lengths else 0
+
+    # Categorize sentences
+    short_sentences = sum(1 for l in sentence_lengths if l <= 10)
+    medium_sentences = sum(1 for l in sentence_lengths if 10 < l <= 25)
+    long_sentences = sum(1 for l in sentence_lengths if l > 25)
+    total_sentences = len(sentence_lengths)
+
+    return {
+        "para_count": len(para_lengths),
+        "avg_para_words": avg_para_words,
+        "para_lengths": para_lengths,
+        "list_items": list_items,
+        "sentence_count": total_sentences,
+        "avg_sentence_words": avg_sentence_words,
+        "pct_short_sentences": (short_sentences / total_sentences * 100) if total_sentences else 0,
+        "pct_medium_sentences": (medium_sentences / total_sentences * 100) if total_sentences else 0,
+        "pct_long_sentences": (long_sentences / total_sentences * 100) if total_sentences else 0,
+    }
 
 
 def calculate_score(findings: dict) -> int:
@@ -290,6 +374,21 @@ def print_report(findings: dict, filename: str, verbose: bool = False):
 
     print(f"Score: {score}/100 ({grade})")
     print()
+
+    # Structural metrics
+    if "structural" in stats:
+        struct = stats["structural"]
+        print("-" * 60)
+        print("STRUCTURE ANALYSIS")
+        print("-" * 60)
+        print(f"  Paragraphs: {struct['para_count']} (avg {struct['avg_para_words']:.0f} words each)")
+        if struct['avg_para_words'] < MIN_HEALTHY_PARA_LENGTH:
+            print(f"    WARNING: Short paragraphs suggest AI (aim for 40+ words)")
+        print(f"  Sentences: {struct['sentence_count']} (avg {struct['avg_sentence_words']:.0f} words each)")
+        print(f"    Short (1-10): {struct['pct_short_sentences']:.0f}%  Medium (11-25): {struct['pct_medium_sentences']:.0f}%  Long (26+): {struct['pct_long_sentences']:.0f}%")
+        if struct['list_items'] > 0:
+            print(f"  List items: {struct['list_items']}")
+        print()
 
     # High severity findings
     if findings["high"]:
