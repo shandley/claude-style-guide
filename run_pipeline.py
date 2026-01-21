@@ -42,7 +42,7 @@ COMPARISON_REPORT_PATH = RESULTS_PATH / "model_comparison.md"
 
 # Available models
 AVAILABLE_MODELS = [
-    "opus-4.5", "sonnet-4", "sonnet-3.5", "opus-3", "sonnet-3", "haiku-3"
+    "opus-4.5", "sonnet-4", "sonnet-3.7", "haiku-3.5", "haiku-3"
 ]
 
 

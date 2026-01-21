@@ -12,15 +12,18 @@ from datetime import datetime
 from pathlib import Path
 
 import anthropic
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from tqdm import tqdm
 
 # Available models for comparison
 AVAILABLE_MODELS = {
     "opus-4.5": "claude-opus-4-5-20251101",
     "sonnet-4": "claude-sonnet-4-20250514",
-    "sonnet-3.5": "claude-3-5-sonnet-20241022",
-    "opus-3": "claude-3-opus-20240229",
-    "sonnet-3": "claude-3-sonnet-20240229",
+    "sonnet-3.7": "claude-3-7-sonnet-20250219",
+    "haiku-3.5": "claude-3-5-haiku-20241022",
     "haiku-3": "claude-3-haiku-20240307",
 }
 
