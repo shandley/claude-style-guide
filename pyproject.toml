@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prose-check"
+version = "0.1.0"
+description = "Detect AI-generated writing patterns in prose"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Scott Handley"}
+]
+keywords = ["ai", "writing", "detection", "prose", "llm", "claude"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "pyyaml>=6.0",
+    "jinja2>=3.0",
+]
+
+[project.optional-dependencies]
+docx = ["python-docx>=0.8.11"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+prose-check = "check_writing:main"
+
+[project.urls]
+Homepage = "https://github.com/shandley/claude-style-guide"
+Repository = "https://github.com/shandley/claude-style-guide"
+Issues = "https://github.com/shandley/claude-style-guide/issues"
+
+[tool.setuptools]
+py-modules = ["check_writing"]
+include-package-data = true
+
+[tool.setuptools.data-files]
+"share/prose-check" = ["results/markers.json", ".prose-check.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B"]
+ignore = ["E501"]  # Line length handled separately

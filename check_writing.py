@@ -42,8 +42,41 @@ except ImportError:
 # Supported file extensions
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".docx"}
 
+
+def find_markers_file() -> Path:
+    """Find markers.json in various locations."""
+    # 1. Local development path (relative to this file)
+    local_path = Path(__file__).parent / "results" / "markers.json"
+    if local_path.exists():
+        return local_path
+
+    # 2. Installed package data location
+    try:
+        import importlib.resources as pkg_resources
+        # Python 3.9+ with files()
+        if hasattr(pkg_resources, 'files'):
+            pkg_path = pkg_resources.files('prose_check_data') / 'markers.json'
+            if pkg_path.is_file():
+                return Path(str(pkg_path))
+    except (ImportError, ModuleNotFoundError, TypeError):
+        pass
+
+    # 3. User data directory
+    user_data = Path.home() / ".prose-check" / "markers.json"
+    if user_data.exists():
+        return user_data
+
+    # 4. System data directory (Unix)
+    system_data = Path("/usr/local/share/prose-check/markers.json")
+    if system_data.exists():
+        return system_data
+
+    # Return the local path (will fail gracefully in load_markers)
+    return local_path
+
+
 # Path to markers file
-MARKERS_PATH = Path(__file__).parent / "results" / "markers.json"
+MARKERS_PATH = find_markers_file()
 
 # Severity thresholds (log-odds)
 HIGH_SEVERITY = 2.5

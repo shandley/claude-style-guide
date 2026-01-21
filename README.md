@@ -80,17 +80,86 @@ Analyze any document for AI writing patterns:
 # Check a text or markdown file
 python check_writing.py document.md
 
-# Check a Word document
-python check_writing.py document.docx
+# Check multiple files
+python check_writing.py README.md docs/*.md
 
-# Verbose output with details
+# Different output formats
+python check_writing.py document.md --format text   # Default
+python check_writing.py document.md --format json   # Machine-readable
+python check_writing.py document.md --format html > report.html
+
+# Interactive mode - review and fix findings one by one
+python check_writing.py document.md --interactive
+
+# Verbose output with low-severity findings
 python check_writing.py document.md --verbose
+
+# Strict mode for essays/articles (flags technical terms)
+python check_writing.py essay.md --no-technical
+
+# Read from stdin
+echo "This is a comprehensive overview." | python check_writing.py --stdin
 ```
 
 Output includes a score (0-100, higher = more human-like) and flags for:
 - Overused punctuation (em dashes, colons, semicolons)
 - AI-favored words and phrases
 - Structural issues (short paragraphs, bullet overuse)
+
+#### CLI Options
+
+| Flag | Description |
+|------|-------------|
+| `--format {text,json,html}` | Output format (default: text) |
+| `--interactive`, `-i` | Review findings interactively and apply fixes |
+| `--verbose`, `-v` | Include low-severity findings |
+| `--no-technical` | Stricter mode - don't exclude technical terms |
+| `--stdin` | Read text from stdin instead of file |
+| `--config PATH` | Custom config file path |
+
+#### Configuration File
+
+Create `.prose-check.yaml` in your project root:
+
+```yaml
+# Minimum score to pass (0-100, default: 60)
+min_score: 70
+
+# Exclude technical terms (default: true)
+# Set to false for stricter prose checking (essays, articles)
+technical: true
+
+# Files/patterns to exclude
+exclude:
+  - "CHANGELOG.md"
+  - "vendor/**"
+  - "node_modules/**"
+
+# Patterns to whitelist (by exact name)
+ignore_patterns:
+  - "comprehensive"  # We use this intentionally
+```
+
+#### CI Integration
+
+**Pre-commit hook** - Add to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: prose-check
+        name: Check prose for AI patterns
+        entry: python check_writing.py
+        language: python
+        types: [markdown]
+        pass_filenames: true
+        additional_dependencies:
+          - pyyaml>=6.0
+          - jinja2>=3.0
+```
+
+**GitHub Action** - The repo includes `.github/workflows/prose-check.yml` that automatically comments on PRs with prose analysis results.
 
 ## How It Works
 
@@ -218,10 +287,14 @@ opus-styleguide/
 │   └── human-writing/         # Claude Code skill
 │       ├── SKILL.md           # Writing guidelines
 │       └── statistics.md      # Reference data
+├── .github/workflows/
+│   └── prose-check.yml        # GitHub Action for PR checks
 ├── data/                      # Generated data (gitignored)
 ├── results/                   # Output reports
 ├── run_pipeline.py            # CLI entry point
 ├── check_writing.py           # Document checker CLI
+├── .prose-check.yaml          # Default config
+├── .pre-commit-hooks.yaml     # Pre-commit hook definition
 └── requirements.txt
 ```
 
