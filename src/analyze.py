@@ -8,6 +8,7 @@ in Opus output than in human text.
 import json
 import math
 import re
+import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import NamedTuple
@@ -428,6 +429,196 @@ def analyze_structural_patterns(
     return markers, summary_stats
 
 
+def analyze_sentence_length_distribution(
+    opus_sentences: list[list[str]],
+    human_sentences: list[list[str]],
+    verbose: bool = False
+) -> dict:
+    """
+    Analyze sentence length distribution patterns.
+
+    AI tends to produce more uniform sentence lengths, while human writing
+    has more variation. This function computes metrics to detect this.
+    """
+    # Flatten sentences and get lengths
+    opus_flat = [s for sents in opus_sentences for s in sents]
+    human_flat = [s for sents in human_sentences for s in sents]
+
+    opus_lengths = [len(s.split()) for s in opus_flat if s.strip()]
+    human_lengths = [len(s.split()) for s in human_flat if s.strip()]
+
+    def compute_distribution_stats(lengths: list[int]) -> dict:
+        if not lengths:
+            return {}
+
+        mean = statistics.mean(lengths)
+        stdev = statistics.stdev(lengths) if len(lengths) > 1 else 0
+
+        # Coefficient of variation (lower = more uniform)
+        cv = (stdev / mean * 100) if mean > 0 else 0
+
+        # Distribution buckets
+        short = sum(1 for l in lengths if l <= 10)
+        medium = sum(1 for l in lengths if 10 < l <= 25)
+        long = sum(1 for l in lengths if l > 25)
+        total = len(lengths)
+
+        # Percentiles
+        sorted_lengths = sorted(lengths)
+        p10 = sorted_lengths[int(len(sorted_lengths) * 0.1)]
+        p25 = sorted_lengths[int(len(sorted_lengths) * 0.25)]
+        p50 = sorted_lengths[int(len(sorted_lengths) * 0.5)]
+        p75 = sorted_lengths[int(len(sorted_lengths) * 0.75)]
+        p90 = sorted_lengths[int(len(sorted_lengths) * 0.9)]
+
+        return {
+            "mean": round(mean, 1),
+            "stdev": round(stdev, 1),
+            "coefficient_of_variation": round(cv, 1),
+            "min": min(lengths),
+            "max": max(lengths),
+            "p10": p10,
+            "p25": p25,
+            "p50_median": p50,
+            "p75": p75,
+            "p90": p90,
+            "pct_short_1_10": round(short / total * 100, 1),
+            "pct_medium_11_25": round(medium / total * 100, 1),
+            "pct_long_26_plus": round(long / total * 100, 1),
+        }
+
+    opus_stats = compute_distribution_stats(opus_lengths)
+    human_stats = compute_distribution_stats(human_lengths)
+
+    if verbose:
+        print(f"\n  Sentence length distribution:")
+        print(f"    Opus CV: {opus_stats.get('coefficient_of_variation', 0)}% (lower = more uniform)")
+        print(f"    Human CV: {human_stats.get('coefficient_of_variation', 0)}%")
+
+    return {
+        "opus_sentence_distribution": opus_stats,
+        "human_sentence_distribution": human_stats,
+    }
+
+
+def detect_passive_voice(
+    opus_texts: list[str],
+    human_texts: list[str],
+    verbose: bool = False
+) -> dict:
+    """
+    Detect passive voice constructions.
+
+    AI writing often uses more passive voice than human writing.
+    Looks for patterns like "was/were/is/are/been + past participle"
+    """
+    # Common passive voice patterns
+    # This is a heuristic - not perfect but catches most cases
+    passive_patterns = [
+        r'\b(is|are|was|were|be|been|being)\s+(\w+ed)\b',  # is completed, was started
+        r'\b(is|are|was|were|be|been|being)\s+(\w+en)\b',  # is taken, was written
+        r'\b(is|are|was|were|be|been|being)\s+(made|done|seen|known|shown|found|given|told|left|kept|felt|thought|brought|bought|caught|taught|sought)\b',
+        r'\b(has|have|had)\s+been\s+(\w+ed)\b',  # has been completed
+        r'\b(has|have|had)\s+been\s+(\w+en)\b',  # has been taken
+        r'\b(will|would|should|could|might|must)\s+be\s+(\w+ed)\b',  # will be completed
+        r'\b(will|would|should|could|might|must)\s+be\s+(\w+en)\b',  # will be taken
+    ]
+
+    def count_passive(texts: list[str]) -> tuple[int, int]:
+        passive_count = 0
+        total_sentences = 0
+        for text in texts:
+            sentences = nltk.sent_tokenize(text)
+            total_sentences += len(sentences)
+            for sent in sentences:
+                for pattern in passive_patterns:
+                    if re.search(pattern, sent, re.IGNORECASE):
+                        passive_count += 1
+                        break  # Count each sentence once
+        return passive_count, total_sentences
+
+    opus_passive, opus_total = count_passive(opus_texts)
+    human_passive, human_total = count_passive(human_texts)
+
+    opus_pct = (opus_passive / opus_total * 100) if opus_total > 0 else 0
+    human_pct = (human_passive / human_total * 100) if human_total > 0 else 0
+
+    if verbose:
+        print(f"\n  Passive voice usage:")
+        print(f"    Opus: {opus_pct:.1f}% of sentences")
+        print(f"    Human: {human_pct:.1f}% of sentences")
+
+    return {
+        "opus_passive_voice_pct": round(opus_pct, 1),
+        "human_passive_voice_pct": round(human_pct, 1),
+        "opus_passive_count": opus_passive,
+        "opus_total_sentences": opus_total,
+        "human_passive_count": human_passive,
+        "human_total_sentences": human_total,
+    }
+
+
+def analyze_paragraph_patterns(
+    opus_texts: list[str],
+    human_texts: list[str],
+    verbose: bool = False
+) -> dict:
+    """
+    Analyze paragraph structure patterns.
+
+    Looks at paragraph length variation, opening patterns, and structure.
+    """
+    def get_paragraph_stats(texts: list[str]) -> dict:
+        all_para_lengths = []
+        paras_per_doc = []
+        opening_words = Counter()
+
+        for text in texts:
+            # Split into paragraphs
+            paras = [p.strip() for p in re.split(r'\n\s*\n', text) if p.strip()]
+            paras_per_doc.append(len(paras))
+
+            for para in paras:
+                words = para.split()
+                if words:
+                    all_para_lengths.append(len(words))
+                    # Track opening word of paragraph
+                    opening_words[words[0].lower().strip('.,!?;:"')] += 1
+
+        if not all_para_lengths:
+            return {}
+
+        mean_len = statistics.mean(all_para_lengths)
+        stdev_len = statistics.stdev(all_para_lengths) if len(all_para_lengths) > 1 else 0
+        cv = (stdev_len / mean_len * 100) if mean_len > 0 else 0
+
+        # Top opening words
+        top_openers = opening_words.most_common(10)
+
+        return {
+            "avg_paragraphs_per_doc": round(statistics.mean(paras_per_doc), 1) if paras_per_doc else 0,
+            "avg_para_length_words": round(mean_len, 1),
+            "para_length_stdev": round(stdev_len, 1),
+            "para_length_cv": round(cv, 1),
+            "min_para_length": min(all_para_lengths),
+            "max_para_length": max(all_para_lengths),
+            "top_para_openers": top_openers,
+        }
+
+    opus_stats = get_paragraph_stats(opus_texts)
+    human_stats = get_paragraph_stats(human_texts)
+
+    if verbose:
+        print(f"\n  Paragraph patterns:")
+        print(f"    Opus avg para length: {opus_stats.get('avg_para_length_words', 0)} words (CV: {opus_stats.get('para_length_cv', 0)}%)")
+        print(f"    Human avg para length: {human_stats.get('avg_para_length_words', 0)} words (CV: {human_stats.get('para_length_cv', 0)}%)")
+
+    return {
+        "opus_paragraph_stats": opus_stats,
+        "human_paragraph_stats": human_stats,
+    }
+
+
 def analyze_phrase_patterns(
     opus_texts: list[str],
     human_texts: list[str],
@@ -644,6 +835,24 @@ def run_analysis(
     if verbose:
         print("\nAnalyzing phrase patterns...")
     phrase_markers = analyze_phrase_patterns(opus_texts, human_texts, verbose)
+
+    # Enhanced structural analysis
+    if verbose:
+        print("\nAnalyzing sentence length distribution...")
+    sentence_dist_stats = analyze_sentence_length_distribution(
+        opus_sentences, human_sentences, verbose
+    )
+    summary_stats.update(sentence_dist_stats)
+
+    if verbose:
+        print("\nDetecting passive voice...")
+    passive_stats = detect_passive_voice(opus_texts, human_texts, verbose)
+    summary_stats.update(passive_stats)
+
+    if verbose:
+        print("\nAnalyzing paragraph patterns...")
+    paragraph_stats = analyze_paragraph_patterns(opus_texts, human_texts, verbose)
+    summary_stats.update(paragraph_stats)
 
     # Combine and sort all markers by log-odds
     all_markers = lexical_markers + structural_markers + phrase_markers

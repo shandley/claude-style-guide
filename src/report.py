@@ -302,23 +302,47 @@ def generate_styleguide(
     lines.append("")
 
     if summary_stats:
-        lines.append("### Sentence Length")
+        # Sentence Length Distribution
+        lines.append("### Sentence Length Distribution")
         lines.append("")
-        opus_avg = summary_stats.get("opus_avg_sentence_length", 0)
-        human_avg = summary_stats.get("human_avg_sentence_length", 0)
-        lines.append(f"- AI average: **{opus_avg:.1f} words** per sentence")
-        lines.append(f"- Human average: **{human_avg:.1f} words** per sentence")
-        if opus_avg > human_avg:
-            lines.append(f"- *Tip: Your sentences might be too long. Try breaking them up.*")
+        opus_dist = summary_stats.get("opus_sentence_distribution", {})
+        human_dist = summary_stats.get("human_sentence_distribution", {})
+
+        if opus_dist and human_dist:
+            lines.append("| Metric | AI | Human | Insight |")
+            lines.append("|--------|-----|-------|---------|")
+            lines.append(f"| Mean length | {opus_dist.get('mean', 0)} words | {human_dist.get('mean', 0)} words | AI sentences slightly longer |")
+            lines.append(f"| Coefficient of variation | {opus_dist.get('coefficient_of_variation', 0)}% | {human_dist.get('coefficient_of_variation', 0)}% | AI has more extreme variation |")
+            lines.append(f"| Short sentences (1-10 words) | {opus_dist.get('pct_short_1_10', 0)}% | {human_dist.get('pct_short_1_10', 0)}% | AI uses more short sentences |")
+            lines.append(f"| Medium sentences (11-25 words) | {opus_dist.get('pct_medium_11_25', 0)}% | {human_dist.get('pct_medium_11_25', 0)}% | Human writing more consistent |")
+            lines.append(f"| Long sentences (26+ words) | {opus_dist.get('pct_long_26_plus', 0)}% | {human_dist.get('pct_long_26_plus', 0)}% | Similar long sentence usage |")
+            lines.append("")
+            lines.append("*Tip: AI tends to alternate between very short and very long sentences. Human writing has more medium-length sentences.*")
+            lines.append("")
+
+        # Passive Voice
+        lines.append("### Passive Voice")
+        lines.append("")
+        opus_passive = summary_stats.get("opus_passive_voice_pct", 0)
+        human_passive = summary_stats.get("human_passive_voice_pct", 0)
+        lines.append(f"- AI uses passive voice in **{opus_passive}%** of sentences")
+        lines.append(f"- Human writing uses passive voice in **{human_passive}%** of sentences")
+        if opus_passive < human_passive:
+            lines.append("- *Surprisingly, AI uses LESS passive voice than humans. Don't over-correct by avoiding all passive constructions.*")
         lines.append("")
 
-        lines.append("### Paragraph Length")
+        # Paragraph Patterns
+        lines.append("### Paragraph Structure")
         lines.append("")
-        opus_para = summary_stats.get("opus_avg_para_length", 0)
-        human_para = summary_stats.get("human_avg_para_length", 0)
-        lines.append(f"- AI average: **{opus_para:.1f} words** per paragraph")
-        lines.append(f"- Human average: **{human_para:.1f} words** per paragraph")
-        lines.append("")
+        opus_para = summary_stats.get("opus_paragraph_stats", {})
+        human_para = summary_stats.get("human_paragraph_stats", {})
+
+        if opus_para:
+            lines.append(f"- AI average: **{opus_para.get('avg_para_length_words', 0)} words** per paragraph")
+            lines.append(f"- AI uses **{opus_para.get('avg_paragraphs_per_doc', 0)} paragraphs** per document on average")
+            lines.append("")
+            lines.append("*Tip: AI tends to fragment text into many short paragraphs. Consider combining related ideas into longer, more developed paragraphs.*")
+            lines.append("")
 
         lines.append("### List Usage")
         lines.append("")
@@ -332,12 +356,16 @@ def generate_styleguide(
 
         lines.append("### Punctuation")
         lines.append("")
-        for punct in ["colon", "semicolon", "em_dash"]:
+        lines.append("| Punctuation | AI (per 1k chars) | Human (per 1k chars) | Ratio |")
+        lines.append("|-------------|-------------------|----------------------|-------|")
+        for punct in ["em_dash", "colon", "semicolon"]:
             opus_rate = summary_stats.get(f"opus_{punct}_per_1k", 0)
             human_rate = summary_stats.get(f"human_{punct}_per_1k", 0)
             if opus_rate > 0 or human_rate > 0:
-                diff = "more" if opus_rate > human_rate else "less"
-                lines.append(f"- {punct.replace('_', '-')}: AI uses {opus_rate:.2f}/1k chars vs human {human_rate:.2f}/1k chars")
+                ratio = opus_rate / human_rate if human_rate > 0 else float('inf')
+                lines.append(f"| {punct.replace('_', ' ')} | {opus_rate:.2f} | {human_rate:.2f} | {ratio:.1f}x |")
+        lines.append("")
+        lines.append("*Tip: Em dashes are a strong AI signal. Replace with commas, periods, or parentheses.*")
         lines.append("")
 
     # Before/After Examples

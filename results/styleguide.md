@@ -1,6 +1,6 @@
 # Personal Writing Styleguide: Avoiding LLM Patterns
 
-*Generated 2026-01-20 from analysis of 200 AI samples vs 6000 human texts*
+*Generated 2026-01-21 from analysis of 200 AI samples vs 6000 human texts*
 
 ## Quick Reference: Top Patterns to Avoid
 
@@ -47,27 +47,27 @@ Run through this checklist when reviewing your writing:
 - [ ] Search for "**marcus**" and replace or delete
 - [ ] Search for "versioning" and replace or delete
 - [ ] Search for "me walk" and replace or delete
-- [ ] Search for "distributed systems" and replace or delete
 - [ ] Search for "self return" and replace or delete
+- [ ] Search for "distributed systems" and replace or delete
 - [ ] Search for "let me walk" and replace or delete
 
 ### Medium Priority (Moderately AI-like)
 
+- [ ] Check uses of "document the"
 - [ ] Check uses of "a software"
+- [ ] Check uses of "i must"
 - [ ] Check uses of "ip address"
 - [ ] Check uses of "to specific"
-- [ ] Check uses of "document the"
-- [ ] Check uses of "i must"
 - [ ] Check uses of "guide"
 - [ ] Check uses of "load"
+- [ ] Check uses of "a dog"
+- [ ] Check uses of "where your"
+- [ ] Check uses of "break it"
+- [ ] Check uses of "it worth"
+- [ ] Check uses of "anything you"
+- [ ] Check uses of "probably the"
 - [ ] Check uses of "a technical"
 - [ ] Check uses of "a legitimate"
-- [ ] Check uses of "where your"
-- [ ] Check uses of "this guide"
-- [ ] Check uses of "went wrong"
-- [ ] Check uses of "anything you"
-- [ ] Check uses of "web server"
-- [ ] Check uses of "probably the"
 
 ## Words to Avoid
 
@@ -86,25 +86,25 @@ These individual words appear significantly more often in AI writing than human 
 | graphql | 0.03% | 0.000% | 719.7x | — |
 | tradeoffs | 0.03% | 0.000% | 668.3x | — |
 | caching | 0.08% | 0.000% | 651.2x | — |
-| fourier | 0.03% | 0.000% | 616.9x | — |
 | kubectl | 0.03% | 0.000% | 616.9x | — |
 | codebase | 0.03% | 0.000% | 616.9x | — |
+| fourier | 0.03% | 0.000% | 616.9x | — |
 | failover | 0.02% | 0.000% | 565.5x | — |
 | refactor | 0.02% | 0.000% | 565.5x | — |
 | webhooks | 0.02% | 0.000% | 565.5x | — |
-| kubernetes | 0.02% | 0.000% | 565.5x | — |
 | bfs | 0.02% | 0.000% | 565.5x | — |
+| kubernetes | 0.02% | 0.000% | 565.5x | — |
 | micronaut | 0.02% | 0.000% | 514.1x | — |
 | abstractions | 0.02% | 0.000% | 514.1x | — |
+| orchestration | 0.02% | 0.000% | 462.7x | — |
 | cdn | 0.02% | 0.000% | 462.7x | — |
 | websocket | 0.02% | 0.000% | 462.7x | — |
-| orchestration | 0.02% | 0.000% | 462.7x | — |
-| usestate | 0.02% | 0.000% | 411.3x | — |
 | incrementally | 0.02% | 0.000% | 411.3x | — |
+| memoization | 0.02% | 0.000% | 411.3x | — |
+| usestate | 0.02% | 0.000% | 411.3x | — |
 | deque | 0.02% | 0.000% | 411.3x | — |
 | codebases | 0.02% | 0.000% | 411.3x | — |
 | acknowledgment | 0.02% | 0.000% | 411.3x | — |
-| memoization | 0.02% | 0.000% | 411.3x | — |
 
 ## Phrases to Avoid
 
@@ -213,16 +213,16 @@ AI tends to overuse certain sentence openers. If you find yourself starting many
 | ``` | 1.0% | 0.00% | 1320.4x |
 | --- | 5.5% | 0.01% | 1001.2x |
 | **Marcus** | 0.6% | 0.00% | 812.5x |
-| **Margaret:** | 0.6% | 0.00% | 711.0x |
 | **The | 0.6% | 0.00% | 711.0x |
+| **Margaret:** | 0.6% | 0.00% | 711.0x |
 | **Jenna** | 0.5% | 0.00% | 660.2x |
+| **Richard:** | 0.5% | 0.00% | 609.4x |
 | "* | 0.5% | 0.00% | 609.4x |
 | "** | 0.5% | 0.00% | 609.4x |
-| **Richard:** | 0.5% | 0.00% | 609.4x |
 | #### | 0.4% | 0.00% | 457.0x |
 | **Dr | 0.3% | 0.00% | 355.5x |
 | **Mr | 0.2% | 0.00% | 304.7x |
-| [Best | 0.2% | 0.00% | 253.9x |
+| ```Python | 0.2% | 0.00% | 253.9x |
 
 ## Common AI Bigrams and Trigrams
 
@@ -233,17 +233,17 @@ These word combinations are distinctively AI-like.
 - **"comprehensive guide"** — 1387.1x more common in AI
 - **"technical debt"** — 1027.4x more common in AI
 - **"me walk"** — 770.6x more common in AI
-- **"distributed systems"** — 770.6x more common in AI
 - **"self return"** — 770.6x more common in AI
+- **"distributed systems"** — 770.6x more common in AI
 - **"eventual consistency"** — 719.2x more common in AI
 - **"error handling"** — 667.8x more common in AI
 - **"microservices architecture"** — 616.5x more common in AI
 - **"what actually"** — 616.5x more common in AI
 - **"key k"** — 565.1x more common in AI
+- **"code review"** — 513.7x more common in AI
 - **"document provides"** — 513.7x more common in AI
 - **"private final"** — 513.7x more common in AI
 - **"legacy system"** — 513.7x more common in AI
-- **"code review"** — 513.7x more common in AI
 - **"legacy systems"** — 462.4x more common in AI
 
 ### Trigrams (3-word combinations)
@@ -256,28 +256,42 @@ These word combinations are distinctively AI-like.
 - **"this document provides"** — 513.4x more common in AI
 - **"document provides a"** — 513.4x more common in AI
 - **"in distributed systems"** — 359.3x more common in AI
-- **"let me break"** — 308.0x more common in AI
-- **"you through how"** — 308.0x more common in AI
-- **"provides a formal"** — 308.0x more common in AI
 - **"flag set to"** — 308.0x more common in AI
-- **"at compile time"** — 308.0x more common in AI
+- **"let me break"** — 308.0x more common in AI
 - **"the three pillars"** — 308.0x more common in AI
+- **"here a comprehensive"** — 308.0x more common in AI
+- **"comprehensive guide hey"** — 308.0x more common in AI
 - **"sudo systemctl stop"** — 308.0x more common in AI
+- **"provides a formal"** — 308.0x more common in AI
 
 ## Structural Patterns
 
 Beyond word choice, AI writing has distinctive structural patterns.
 
-### Sentence Length
+### Sentence Length Distribution
 
-- AI average: **23.9 words** per sentence
-- Human average: **19.8 words** per sentence
-- *Tip: Your sentences might be too long. Try breaking them up.*
+| Metric | AI | Human | Insight |
+|--------|-----|-------|---------|
+| Mean length | 23.9 words | 19.8 words | AI sentences slightly longer |
+| Coefficient of variation | 137.1% | 70.5% | AI has more extreme variation |
+| Short sentences (1-10 words) | 39.9% | 23.9% | AI uses more short sentences |
+| Medium sentences (11-25 words) | 34.1% | 50.3% | Human writing more consistent |
+| Long sentences (26+ words) | 26.1% | 25.8% | Similar long sentence usage |
 
-### Paragraph Length
+*Tip: AI tends to alternate between very short and very long sentences. Human writing has more medium-length sentences.*
 
-- AI average: **16.6 words** per paragraph
-- Human average: **209.6 words** per paragraph
+### Passive Voice
+
+- AI uses passive voice in **4.7%** of sentences
+- Human writing uses passive voice in **14.9%** of sentences
+- *Surprisingly, AI uses LESS passive voice than humans. Don't over-correct by avoiding all passive constructions.*
+
+### Paragraph Structure
+
+- AI average: **16.2 words** per paragraph
+- AI uses **18.4 paragraphs** per document on average
+
+*Tip: AI tends to fragment text into many short paragraphs. Consider combining related ideas into longer, more developed paragraphs.*
 
 ### List Usage
 
@@ -287,9 +301,13 @@ Beyond word choice, AI writing has distinctive structural patterns.
 
 ### Punctuation
 
-- colon: AI uses 4.12/1k chars vs human 1.01/1k chars
-- semicolon: AI uses 0.69/1k chars vs human 0.23/1k chars
-- em-dash: AI uses 4.79/1k chars vs human 0.28/1k chars
+| Punctuation | AI (per 1k chars) | Human (per 1k chars) | Ratio |
+|-------------|-------------------|----------------------|-------|
+| em dash | 4.79 | 0.28 | 16.9x |
+| colon | 4.12 | 1.01 | 4.1x |
+| semicolon | 0.69 | 0.23 | 3.1x |
+
+*Tip: Em dashes are a strong AI signal. Replace with commas, periods, or parentheses.*
 
 ## Before/After Examples
 
