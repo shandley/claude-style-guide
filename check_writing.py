@@ -6,19 +6,38 @@ Usage:
     python check_writing.py document.md
     python check_writing.py document.docx
     python check_writing.py document.md --verbose
-    python check_writing.py document.md --json
+    python check_writing.py document.md --format json
+    python check_writing.py document.md --format html > report.html
+    python check_writing.py document.md --interactive
+    python check_writing.py *.md --format text
     cat document.md | python check_writing.py --stdin
 
 Supported formats: .txt, .md, .docx
 """
 
 import argparse
+import fnmatch
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from collections import defaultdict
+from typing import Optional
+
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+
+try:
+    from jinja2 import Template
+    JINJA2_AVAILABLE = True
+except ImportError:
+    JINJA2_AVAILABLE = False
 
 # Supported file extensions
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".docx"}
@@ -106,6 +125,61 @@ ALTERNATIVES = {
     "it's worth noting": "(delete)",
     "that being said": "but, however",
 }
+
+# Default configuration
+DEFAULT_CONFIG = {
+    "min_score": 60,
+    "exclude": [],
+    "ignore_patterns": [],
+}
+
+
+def load_config(config_path: Optional[Path] = None) -> dict:
+    """Load config from .prose-check.yaml if exists."""
+    config = DEFAULT_CONFIG.copy()
+
+    # Try to find config file
+    if config_path is None:
+        # Look in current directory and parent directories
+        search_paths = [
+            Path.cwd() / ".prose-check.yaml",
+            Path.cwd() / ".prose-check.yml",
+            Path(__file__).parent / ".prose-check.yaml",
+            Path(__file__).parent / ".prose-check.yml",
+        ]
+        for path in search_paths:
+            if path.exists():
+                config_path = path
+                break
+
+    if config_path and config_path.exists():
+        if not YAML_AVAILABLE:
+            print("Warning: PyYAML not installed, config file ignored", file=sys.stderr)
+            return config
+
+        with open(config_path) as f:
+            file_config = yaml.safe_load(f) or {}
+
+        # Merge with defaults
+        if "min_score" in file_config:
+            config["min_score"] = file_config["min_score"]
+        if "exclude" in file_config:
+            config["exclude"] = file_config["exclude"]
+        if "ignore_patterns" in file_config:
+            config["ignore_patterns"] = file_config["ignore_patterns"]
+
+    return config
+
+
+def should_exclude_file(filepath: str, exclude_patterns: list) -> bool:
+    """Check if file matches any exclude pattern."""
+    for pattern in exclude_patterns:
+        if fnmatch.fnmatch(filepath, pattern):
+            return True
+        # Also check basename
+        if fnmatch.fnmatch(Path(filepath).name, pattern):
+            return True
+    return False
 
 
 def load_markers() -> dict:
@@ -419,109 +493,656 @@ def calculate_score(findings: dict) -> int:
     return int(score)
 
 
-def print_report(findings: dict, filename: str, verbose: bool = False):
-    """Print human-readable report."""
-    stats = findings["stats"]
-    score = calculate_score(findings)
+def get_grade(score: int) -> str:
+    """Get grade description from score."""
+    if score >= 90:
+        return "Excellent - Very human-like"
+    elif score >= 75:
+        return "Good - Minor issues"
+    elif score >= 60:
+        return "Fair - Some LLM patterns"
+    elif score >= 40:
+        return "Needs work - Notable LLM patterns"
+    else:
+        return "High AI signal - Many LLM patterns"
 
-    print("=" * 60)
-    print(f"Writing Analysis: {filename}")
-    print("=" * 60)
-    print(f"Words: {stats['total_words']:,}")
-    print(f"Patterns found: {stats['patterns_found']}")
-    print(f"  High severity: {stats['high_severity']}")
-    print(f"  Medium severity: {stats['medium_severity']}")
-    print()
+
+def format_text(findings: dict, score: int, filename: str, verbose: bool = False) -> str:
+    """Format findings as plain text."""
+    lines = []
+    stats = findings["stats"]
+
+    lines.append("=" * 60)
+    lines.append(f"Writing Analysis: {filename}")
+    lines.append("=" * 60)
+    lines.append(f"Words: {stats['total_words']:,}")
+    lines.append(f"Patterns found: {stats['patterns_found']}")
+    lines.append(f"  High severity: {stats['high_severity']}")
+    lines.append(f"  Medium severity: {stats['medium_severity']}")
+    lines.append("")
 
     # Score
-    if score >= 90:
-        grade = "Excellent - Very human-like"
-    elif score >= 75:
-        grade = "Good - Minor issues"
-    elif score >= 60:
-        grade = "Fair - Some LLM patterns"
-    elif score >= 40:
-        grade = "Needs work - Notable LLM patterns"
-    else:
-        grade = "High AI signal - Many LLM patterns"
-
-    print(f"Score: {score}/100 ({grade})")
-    print()
+    grade = get_grade(score)
+    lines.append(f"Score: {score}/100 ({grade})")
+    lines.append("")
 
     # Structural metrics
     if "structural" in stats:
         struct = stats["structural"]
-        print("-" * 60)
-        print("STRUCTURE ANALYSIS")
-        print("-" * 60)
-        print(f"  Paragraphs: {struct['para_count']} (avg {struct['avg_para_words']:.0f} words each)")
+        lines.append("-" * 60)
+        lines.append("STRUCTURE ANALYSIS")
+        lines.append("-" * 60)
+        lines.append(f"  Paragraphs: {struct['para_count']} (avg {struct['avg_para_words']:.0f} words each)")
         if struct['avg_para_words'] < MIN_HEALTHY_PARA_LENGTH:
-            print("    WARNING: Short paragraphs suggest AI (aim for 40+ words)")
-        print(f"  Sentences: {struct['sentence_count']} (avg {struct['avg_sentence_words']:.0f} words each)")
-        print(f"    Short (1-10): {struct['pct_short_sentences']:.0f}%  Medium (11-25): {struct['pct_medium_sentences']:.0f}%  Long (26+): {struct['pct_long_sentences']:.0f}%")
+            lines.append("    WARNING: Short paragraphs suggest AI (aim for 40+ words)")
+        lines.append(f"  Sentences: {struct['sentence_count']} (avg {struct['avg_sentence_words']:.0f} words each)")
+        lines.append(f"    Short (1-10): {struct['pct_short_sentences']:.0f}%  Medium (11-25): {struct['pct_medium_sentences']:.0f}%  Long (26+): {struct['pct_long_sentences']:.0f}%")
         if struct['list_items'] > 0:
-            print(f"  List items: {struct['list_items']}")
-        print()
+            lines.append(f"  List items: {struct['list_items']}")
+        lines.append("")
 
     # High severity findings
     if findings["high"]:
-        print("-" * 60)
-        print("HIGH SEVERITY (strongly suggests AI)")
-        print("-" * 60)
+        lines.append("-" * 60)
+        lines.append("HIGH SEVERITY (strongly suggests AI)")
+        lines.append("-" * 60)
         for f in sorted(findings["high"], key=lambda x: -x.get("ratio", 0))[:15]:
             alt = f" -> {f['alternative']}" if f.get("alternative") else ""
-            print(f"  [{f['count']}x] \"{f['pattern']}\"{alt}")
+            lines.append(f"  [{f['count']}x] \"{f['pattern']}\"{alt}")
             if f.get("context") and verbose:
-                print(f"       {f['context']}")
-        print()
+                lines.append(f"       {f['context']}")
+        lines.append("")
 
     # Medium severity findings
     if findings["medium"] and verbose:
-        print("-" * 60)
-        print("MEDIUM SEVERITY (moderately AI-like)")
-        print("-" * 60)
+        lines.append("-" * 60)
+        lines.append("MEDIUM SEVERITY (moderately AI-like)")
+        lines.append("-" * 60)
         for f in sorted(findings["medium"], key=lambda x: -x.get("ratio", 0))[:10]:
             alt = f" -> {f['alternative']}" if f.get("alternative") else ""
-            print(f"  [{f['count']}x] \"{f['pattern']}\"{alt}")
-        print()
+            lines.append(f"  [{f['count']}x] \"{f['pattern']}\"{alt}")
+        lines.append("")
 
     # Summary by category
     if verbose and findings["by_category"]:
-        print("-" * 60)
-        print("BY CATEGORY")
-        print("-" * 60)
+        lines.append("-" * 60)
+        lines.append("BY CATEGORY")
+        lines.append("-" * 60)
         for cat_type, cat_findings in sorted(findings["by_category"].items()):
             cat_name = CATEGORIES.get(cat_type, cat_type)
             total = sum(f["count"] for f in cat_findings)
-            print(f"  {cat_name}: {total} occurrences")
-        print()
+            lines.append(f"  {cat_name}: {total} occurrences")
+        lines.append("")
 
     # Suggestions
     if findings["high"]:
-        print("-" * 60)
-        print("SUGGESTIONS")
-        print("-" * 60)
+        lines.append("-" * 60)
+        lines.append("SUGGESTIONS")
+        lines.append("-" * 60)
         suggestions = set()
         for f in findings["high"][:5]:
             if f.get("alternative"):
                 suggestions.add(f"Replace \"{f['pattern']}\" with: {f['alternative']}")
         for s in list(suggestions)[:5]:
-            print(f"  - {s}")
-        print()
+            lines.append(f"  - {s}")
+        lines.append("")
 
-    print("=" * 60)
+    lines.append("=" * 60)
+    return "\n".join(lines)
 
 
-def print_json(findings: dict, filename: str):
-    """Print JSON output."""
+def format_json(findings: dict, score: int, filename: str) -> str:
+    """Format findings as JSON."""
     output = {
         "filename": filename,
-        "score": calculate_score(findings),
+        "score": score,
+        "grade": get_grade(score),
         "stats": findings["stats"],
         "high_severity": findings["high"],
         "medium_severity": findings["medium"],
     }
-    print(json.dumps(output, indent=2))
+    return json.dumps(output, indent=2)
+
+
+def format_json_batch(results: list) -> str:
+    """Format multiple file results as JSON."""
+    output = {
+        "files": results,
+        "summary": {
+            "total_files": len(results),
+            "passing": sum(1 for r in results if r["score"] >= 60),
+            "failing": sum(1 for r in results if r["score"] < 60),
+            "average_score": sum(r["score"] for r in results) / len(results) if results else 0,
+        }
+    }
+    return json.dumps(output, indent=2)
+
+
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Writing Analysis Report</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .report { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; margin-bottom: 20px; font-size: 1.8em; }
+        h2 { color: #34495e; margin: 25px 0 15px; font-size: 1.3em; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .score-gauge {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .score-number {
+            font-size: 3em;
+            font-weight: bold;
+        }
+        .score-excellent { color: #27ae60; }
+        .score-good { color: #2ecc71; }
+        .score-fair { color: #f39c12; }
+        .score-poor { color: #e67e22; }
+        .score-bad { color: #e74c3c; }
+        .score-bar {
+            flex: 1;
+            height: 20px;
+            background: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .score-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 20px 0; }
+        .stat-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-value { font-size: 1.8em; font-weight: bold; color: #2c3e50; }
+        .stat-label { color: #7f8c8d; font-size: 0.9em; }
+        .findings-section { margin: 20px 0; }
+        .finding {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border-left: 4px solid;
+        }
+        .finding-high { background: #fdf2f2; border-color: #e74c3c; }
+        .finding-medium { background: #fef6e7; border-color: #f39c12; }
+        .finding-count {
+            background: #fff;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            min-width: 40px;
+            text-align: center;
+        }
+        .finding-high .finding-count { color: #e74c3c; }
+        .finding-medium .finding-count { color: #f39c12; }
+        .finding-content { flex: 1; }
+        .finding-pattern { font-weight: 600; }
+        .finding-alt { color: #27ae60; font-size: 0.9em; }
+        .finding-context { color: #7f8c8d; font-size: 0.85em; margin-top: 4px; font-style: italic; }
+        .collapsible { cursor: pointer; user-select: none; }
+        .collapsible:hover { background: #f0f0f0; }
+        .collapsible::before { content: '▼ '; font-size: 0.8em; }
+        .collapsible.collapsed::before { content: '▶ '; }
+        .content { display: block; }
+        .content.hidden { display: none; }
+        .suggestion {
+            background: #e8f6e9;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin: 8px 0;
+            border-left: 4px solid #27ae60;
+        }
+        footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #7f8c8d; font-size: 0.85em; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="report">
+        <h1>Writing Analysis Report</h1>
+        <p><strong>File:</strong> {{ filename }}</p>
+
+        <div class="score-gauge">
+            <div class="score-number {{ score_class }}">{{ score }}</div>
+            <div>
+                <div style="margin-bottom: 8px; font-weight: 600;">{{ grade }}</div>
+                <div class="score-bar">
+                    <div class="score-fill {{ score_class }}" style="width: {{ score }}%; background: currentColor;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value">{{ stats.total_words }}</div>
+                <div class="stat-label">Words</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ stats.patterns_found }}</div>
+                <div class="stat-label">Patterns Found</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" style="color: #e74c3c;">{{ stats.high_severity }}</div>
+                <div class="stat-label">High Severity</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" style="color: #f39c12;">{{ stats.medium_severity }}</div>
+                <div class="stat-label">Medium Severity</div>
+            </div>
+        </div>
+
+        {% if structural %}
+        <h2>Structure Analysis</h2>
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value">{{ structural.para_count }}</div>
+                <div class="stat-label">Paragraphs</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ structural.avg_para_words|int }}</div>
+                <div class="stat-label">Avg Words/Para</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ structural.sentence_count }}</div>
+                <div class="stat-label">Sentences</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ structural.list_items }}</div>
+                <div class="stat-label">List Items</div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if high_findings %}
+        <h2 class="collapsible" onclick="toggleSection(this)">High Severity Findings ({{ high_findings|length }})</h2>
+        <div class="content findings-section">
+            {% for f in high_findings %}
+            <div class="finding finding-high">
+                <div class="finding-count">{{ f.count }}x</div>
+                <div class="finding-content">
+                    <div class="finding-pattern">"{{ f.pattern }}"</div>
+                    {% if f.alternative %}<div class="finding-alt">→ {{ f.alternative }}</div>{% endif %}
+                    {% if f.context %}<div class="finding-context">{{ f.context }}</div>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if medium_findings %}
+        <h2 class="collapsible" onclick="toggleSection(this)">Medium Severity Findings ({{ medium_findings|length }})</h2>
+        <div class="content findings-section">
+            {% for f in medium_findings %}
+            <div class="finding finding-medium">
+                <div class="finding-count">{{ f.count }}x</div>
+                <div class="finding-content">
+                    <div class="finding-pattern">"{{ f.pattern }}"</div>
+                    {% if f.alternative %}<div class="finding-alt">→ {{ f.alternative }}</div>{% endif %}
+                    {% if f.context %}<div class="finding-context">{{ f.context }}</div>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if suggestions %}
+        <h2>Suggestions</h2>
+        {% for s in suggestions %}
+        <div class="suggestion">{{ s }}</div>
+        {% endfor %}
+        {% endif %}
+
+        <footer>
+            Generated by Writing Checker | Score: {{ score }}/100
+        </footer>
+    </div>
+
+    <script>
+        function toggleSection(el) {
+            el.classList.toggle('collapsed');
+            el.nextElementSibling.classList.toggle('hidden');
+        }
+    </script>
+</body>
+</html>"""
+
+
+def format_html(findings: dict, score: int, filename: str) -> str:
+    """Format findings as HTML."""
+    if not JINJA2_AVAILABLE:
+        # Fallback: generate simple HTML without jinja2
+        return generate_simple_html(findings, score, filename)
+
+    template = Template(HTML_TEMPLATE)
+
+    # Determine score class
+    if score >= 90:
+        score_class = "score-excellent"
+    elif score >= 75:
+        score_class = "score-good"
+    elif score >= 60:
+        score_class = "score-fair"
+    elif score >= 40:
+        score_class = "score-poor"
+    else:
+        score_class = "score-bad"
+
+    # Build suggestions
+    suggestions = []
+    for f in findings["high"][:5]:
+        if f.get("alternative"):
+            suggestions.append(f'Replace "{f["pattern"]}" with: {f["alternative"]}')
+
+    return template.render(
+        filename=filename,
+        score=score,
+        grade=get_grade(score),
+        score_class=score_class,
+        stats=findings["stats"],
+        structural=findings["stats"].get("structural"),
+        high_findings=sorted(findings["high"], key=lambda x: -x.get("ratio", 0))[:15],
+        medium_findings=sorted(findings["medium"], key=lambda x: -x.get("ratio", 0))[:10],
+        suggestions=suggestions,
+    )
+
+
+def generate_simple_html(findings: dict, score: int, filename: str) -> str:
+    """Generate simple HTML without jinja2."""
+    stats = findings["stats"]
+    grade = get_grade(score)
+
+    html = f"""<!DOCTYPE html>
+<html><head><title>Writing Analysis: {filename}</title>
+<style>body{{font-family:sans-serif;max-width:800px;margin:0 auto;padding:20px}}
+.high{{color:#e74c3c}}.medium{{color:#f39c12}}</style></head>
+<body><h1>Writing Analysis: {filename}</h1>
+<p><strong>Score:</strong> {score}/100 ({grade})</p>
+<p><strong>Words:</strong> {stats['total_words']} | <strong>Patterns:</strong> {stats['patterns_found']} |
+<span class="high">High: {stats['high_severity']}</span> |
+<span class="medium">Medium: {stats['medium_severity']}</span></p>
+<h2 class="high">High Severity</h2><ul>"""
+
+    for f in sorted(findings["high"], key=lambda x: -x.get("ratio", 0))[:15]:
+        alt = f' → {f["alternative"]}' if f.get("alternative") else ""
+        html += f'<li><strong>{f["count"]}x</strong> "{f["pattern"]}"{alt}</li>'
+
+    html += "</ul><h2 class='medium'>Medium Severity</h2><ul>"
+
+    for f in sorted(findings["medium"], key=lambda x: -x.get("ratio", 0))[:10]:
+        alt = f' → {f["alternative"]}' if f.get("alternative") else ""
+        html += f'<li><strong>{f["count"]}x</strong> "{f["pattern"]}"{alt}</li>'
+
+    html += "</ul></body></html>"
+    return html
+
+
+def print_report(findings: dict, filename: str, verbose: bool = False):
+    """Print human-readable report (legacy wrapper)."""
+    score = calculate_score(findings)
+    print(format_text(findings, score, filename, verbose))
+
+
+def print_json(findings: dict, filename: str):
+    """Print JSON output (legacy wrapper)."""
+    score = calculate_score(findings)
+    print(format_json(findings, score, filename))
+
+
+def highlight_match(text: str, pattern: str, context_chars: int = 60) -> str:
+    """Highlight pattern match in context."""
+    match = re.search(r'\b' + re.escape(pattern) + r'\b', text, re.IGNORECASE)
+    if not match:
+        return text[:context_chars * 2]
+
+    start = max(0, match.start() - context_chars)
+    end = min(len(text), match.end() + context_chars)
+
+    before = text[start:match.start()]
+    matched = text[match.start():match.end()]
+    after = text[match.end():end]
+
+    prefix = "..." if start > 0 else ""
+    suffix = "..." if end < len(text) else ""
+
+    return f"{prefix}{before}\033[1;31m{matched}\033[0m{after}{suffix}"
+
+
+def apply_replacement(text: str, pattern: str, replacement: str, occurrence: int = 0) -> str:
+    """Replace a specific occurrence of pattern with replacement."""
+    regex = re.compile(r'\b' + re.escape(pattern) + r'\b', re.IGNORECASE)
+    matches = list(regex.finditer(text))
+
+    if occurrence >= len(matches):
+        return text
+
+    match = matches[occurrence]
+    return text[:match.start()] + replacement + text[match.end():]
+
+
+def interactive_mode(text: str, findings: dict, filepath: str) -> str:
+    """Process findings interactively, return modified text."""
+    print("\n" + "=" * 60)
+    print("INTERACTIVE MODE")
+    print("=" * 60)
+    print(f"File: {filepath}")
+    print("Commands: [a]ccept suggestion, [s]kip, [e]dit manually, [q]uit")
+    print("=" * 60 + "\n")
+
+    modified_text = text
+    changes_made = 0
+    total_findings = len(findings["high"]) + len(findings["medium"])
+
+    # Combine and sort findings by severity and ratio
+    all_findings = []
+    for f in findings["high"]:
+        f["_severity_order"] = 0
+        all_findings.append(f)
+    for f in findings["medium"]:
+        f["_severity_order"] = 1
+        all_findings.append(f)
+
+    all_findings.sort(key=lambda x: (x["_severity_order"], -x.get("ratio", 0)))
+
+    processed = 0
+    for finding in all_findings:
+        pattern = finding["pattern"]
+        severity = finding["severity"]
+        alternative = finding.get("alternative")
+
+        # Skip structural/aggregate findings that can't be fixed with replacement
+        if finding["type"] in ("structure", "hedging", "punctuation"):
+            continue
+
+        # Check if pattern still exists in modified text
+        if not re.search(r'\b' + re.escape(pattern) + r'\b', modified_text, re.IGNORECASE):
+            continue
+
+        processed += 1
+        severity_color = "\033[1;31m" if severity == "high" else "\033[1;33m"
+
+        print(f"\n[{processed}/{total_findings}] {severity_color}{severity.upper()}\033[0m: \"{pattern}\"")
+
+        # Show context
+        context = highlight_match(modified_text, pattern)
+        print(f"Context: {context}")
+
+        if alternative:
+            # Parse alternatives (comma-separated)
+            alts = [a.strip() for a in alternative.split(",")]
+            print(f"Suggestions: {', '.join(alts)}")
+
+        while True:
+            try:
+                choice = input("\n[a]ccept / [s]kip / [e]dit / [q]uit > ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                choice = "q"
+
+            if choice == "q":
+                print("\nQuitting interactive mode...")
+                if changes_made > 0:
+                    return modified_text, changes_made
+                return text, 0
+
+            elif choice == "s":
+                print("Skipped.")
+                break
+
+            elif choice == "a":
+                if not alternative:
+                    print("No suggestion available. Use [e]dit to provide replacement.")
+                    continue
+
+                # Use first alternative
+                alts = [a.strip() for a in alternative.split(",")]
+                replacement = alts[0]
+                if replacement.startswith("(") and replacement.endswith(")"):
+                    # Things like "(delete)" mean remove it
+                    replacement = ""
+
+                old_text = modified_text
+                modified_text = apply_replacement(modified_text, pattern, replacement)
+
+                if modified_text != old_text:
+                    changes_made += 1
+                    if replacement:
+                        print(f"\033[31m- {pattern}\033[0m")
+                        print(f"\033[32m+ {replacement}\033[0m")
+                    else:
+                        print(f"\033[31m- {pattern}\033[0m (deleted)")
+                break
+
+            elif choice == "e":
+                try:
+                    replacement = input("Enter replacement text: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("Cancelled.")
+                    continue
+
+                old_text = modified_text
+                modified_text = apply_replacement(modified_text, pattern, replacement)
+
+                if modified_text != old_text:
+                    changes_made += 1
+                    print(f"\033[31m- {pattern}\033[0m")
+                    print(f"\033[32m+ {replacement}\033[0m")
+                break
+
+            else:
+                print("Invalid choice. Use a/s/e/q")
+
+    # Show summary
+    print("\n" + "=" * 60)
+    print(f"Changes made: {changes_made}")
+
+    if changes_made > 0:
+        # Recalculate score
+        data = load_markers()
+        markers = data.get("markers", [])
+        new_findings = check_text(modified_text, markers)
+        new_score = calculate_score(new_findings)
+        old_score = calculate_score(findings)
+
+        print(f"Score: {old_score} -> {new_score}")
+
+        while True:
+            try:
+                save = input(f"\nSave changes to {filepath}? [y/n] > ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                save = "n"
+
+            if save == "y":
+                return modified_text, changes_made
+            elif save == "n":
+                print("Changes discarded.")
+                return text, 0
+            else:
+                print("Please enter y or n")
+    else:
+        print("No changes made.")
+
+    return text, 0
+
+
+def process_single_file(
+    filepath: str,
+    markers: list,
+    verbose: bool,
+    output_format: str,
+    config: dict,
+    interactive: bool = False,
+) -> dict:
+    """Process a single file and return results."""
+    path = Path(filepath)
+
+    if not path.exists():
+        return {"filename": filepath, "error": f"File not found: {filepath}"}
+
+    # Check exclusions
+    if should_exclude_file(filepath, config.get("exclude", [])):
+        return {"filename": filepath, "excluded": True}
+
+    try:
+        text = read_file(path)
+    except Exception as e:
+        return {"filename": filepath, "error": str(e)}
+
+    findings = check_text(text, markers, verbose=verbose)
+
+    # Filter out ignored patterns
+    ignore_patterns = config.get("ignore_patterns", [])
+    if ignore_patterns:
+        for severity in ["high", "medium", "low"]:
+            findings[severity] = [
+                f for f in findings[severity]
+                if f["pattern"].lower() not in [p.lower() for p in ignore_patterns]
+            ]
+        # Recalculate stats
+        findings["stats"]["high_severity"] = len(findings["high"])
+        findings["stats"]["medium_severity"] = len(findings["medium"])
+        findings["stats"]["patterns_found"] = (
+            findings["stats"]["high_severity"] + findings["stats"]["medium_severity"]
+        )
+
+    score = calculate_score(findings)
+
+    # Interactive mode
+    if interactive:
+        modified_text, changes = interactive_mode(text, findings, filepath)
+        if changes > 0:
+            path.write_text(modified_text)
+            print(f"Saved {changes} changes to {filepath}")
+            # Re-analyze
+            findings = check_text(modified_text, markers, verbose=verbose)
+            score = calculate_score(findings)
+
+    return {
+        "filename": filepath,
+        "score": score,
+        "grade": get_grade(score),
+        "findings": findings,
+    }
 
 
 def main():
@@ -532,49 +1153,186 @@ def main():
 Examples:
   python check_writing.py document.md
   python check_writing.py document.md --verbose
-  python check_writing.py document.md --json
+  python check_writing.py document.md --format json
+  python check_writing.py document.md --format html > report.html
+  python check_writing.py document.md --interactive
+  python check_writing.py *.md docs/*.md --format text
   cat document.md | python check_writing.py --stdin
         """
     )
-    parser.add_argument("file", nargs="?", help="File to check")
+    parser.add_argument("files", nargs="*", help="Files to check")
     parser.add_argument("--stdin", action="store_true", help="Read from stdin")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
-    parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+    parser.add_argument(
+        "--format", "-f",
+        choices=["text", "json", "html"],
+        default="text",
+        help="Output format (default: text)"
+    )
+    parser.add_argument(
+        "--interactive", "-i",
+        action="store_true",
+        help="Review findings interactively and apply fixes"
+    )
+    parser.add_argument(
+        "--config", "-c",
+        type=Path,
+        help="Path to config file (default: .prose-check.yaml)"
+    )
+    parser.add_argument(
+        "--min-score",
+        type=int,
+        help="Minimum score to pass (overrides config)"
+    )
+    # Legacy support for --json
+    parser.add_argument("--json", "-j", action="store_true", help=argparse.SUPPRESS)
 
     args = parser.parse_args()
 
-    # Get input text
-    if args.stdin:
-        text = sys.stdin.read()
-        filename = "<stdin>"
-    elif args.file:
-        path = Path(args.file)
-        if not path.exists():
-            print(f"Error: File not found: {args.file}", file=sys.stderr)
-            sys.exit(1)
-        text = read_file(path)
-        filename = args.file
-    else:
-        parser.print_help()
-        sys.exit(1)
+    # Handle legacy --json flag
+    if args.json:
+        args.format = "json"
 
-    # Load markers and check
+    # Load config
+    config = load_config(args.config)
+    if args.min_score is not None:
+        config["min_score"] = args.min_score
+
+    min_score = config["min_score"]
+
+    # Validate interactive mode constraints
+    if args.interactive:
+        if args.stdin:
+            print("Error: --interactive requires file input (not stdin)", file=sys.stderr)
+            sys.exit(1)
+        if args.format != "text":
+            print("Warning: --interactive ignores --format, using interactive display", file=sys.stderr)
+
+    # Load markers
     data = load_markers()
     markers = data.get("markers", [])
 
-    findings = check_text(text, markers, verbose=args.verbose)
+    # Handle stdin
+    if args.stdin:
+        text = sys.stdin.read()
+        findings = check_text(text, markers, verbose=args.verbose)
+        score = calculate_score(findings)
 
-    # Output
-    if args.json:
-        print_json(findings, filename)
-    else:
-        print_report(findings, filename, verbose=args.verbose)
+        if args.format == "json":
+            print(format_json(findings, score, "<stdin>"))
+        elif args.format == "html":
+            print(format_html(findings, score, "<stdin>"))
+        else:
+            print(format_text(findings, score, "<stdin>", args.verbose))
 
-    # Exit code based on score
-    score = calculate_score(findings)
-    if score < 60:
+        sys.exit(0 if score >= min_score else 1)
+
+    # Handle file(s)
+    if not args.files:
+        parser.print_help()
         sys.exit(1)
-    sys.exit(0)
+
+    # Process files
+    results = []
+    any_failed = False
+
+    for filepath in args.files:
+        result = process_single_file(
+            filepath=filepath,
+            markers=markers,
+            verbose=args.verbose,
+            output_format=args.format,
+            config=config,
+            interactive=args.interactive,
+        )
+        results.append(result)
+
+        if result.get("error"):
+            print(f"Error: {result['error']}", file=sys.stderr)
+            any_failed = True
+        elif result.get("excluded"):
+            if args.verbose:
+                print(f"Excluded: {filepath}", file=sys.stderr)
+        elif result.get("score", 100) < min_score:
+            any_failed = True
+
+    # Filter out excluded/error results for output
+    valid_results = [r for r in results if "findings" in r]
+
+    if not valid_results:
+        print("No valid files to check.", file=sys.stderr)
+        sys.exit(1)
+
+    # Output based on format
+    if args.interactive:
+        # Interactive mode handles its own output
+        pass
+    elif args.format == "json":
+        if len(valid_results) == 1:
+            r = valid_results[0]
+            print(format_json(r["findings"], r["score"], r["filename"]))
+        else:
+            # Batch JSON output
+            batch_output = []
+            for r in valid_results:
+                batch_output.append({
+                    "filename": r["filename"],
+                    "score": r["score"],
+                    "grade": r["grade"],
+                    "stats": r["findings"]["stats"],
+                    "high_severity": r["findings"]["high"],
+                    "medium_severity": r["findings"]["medium"],
+                })
+            print(format_json_batch(batch_output))
+    elif args.format == "html":
+        if len(valid_results) == 1:
+            r = valid_results[0]
+            print(format_html(r["findings"], r["score"], r["filename"]))
+        else:
+            # For multiple files in HTML, generate a summary page
+            print("<!DOCTYPE html><html><head><title>Batch Report</title>")
+            print("<style>body{font-family:sans-serif;max-width:900px;margin:0 auto;padding:20px}")
+            print(".pass{color:#27ae60}.fail{color:#e74c3c}</style></head><body>")
+            print("<h1>Batch Writing Analysis</h1>")
+            print(f"<p>Files: {len(valid_results)} | ")
+            passing = sum(1 for r in valid_results if r["score"] >= min_score)
+            print(f'<span class="pass">Passing: {passing}</span> | ')
+            print(f'<span class="fail">Failing: {len(valid_results) - passing}</span></p>')
+            print("<table border='1' cellpadding='8' cellspacing='0'>")
+            print("<tr><th>File</th><th>Score</th><th>Grade</th><th>High</th><th>Medium</th></tr>")
+            for r in valid_results:
+                status_class = "pass" if r["score"] >= min_score else "fail"
+                stats = r["findings"]["stats"]
+                print(f"<tr class='{status_class}'>")
+                print(f"<td>{r['filename']}</td>")
+                print(f"<td>{r['score']}</td>")
+                print(f"<td>{r['grade']}</td>")
+                print(f"<td>{stats['high_severity']}</td>")
+                print(f"<td>{stats['medium_severity']}</td>")
+                print("</tr>")
+            print("</table></body></html>")
+    else:
+        # Text format
+        for r in valid_results:
+            print(format_text(r["findings"], r["score"], r["filename"], args.verbose))
+            if len(valid_results) > 1:
+                print()  # Blank line between files
+
+        # Summary for batch
+        if len(valid_results) > 1:
+            print("=" * 60)
+            print("BATCH SUMMARY")
+            print("=" * 60)
+            print(f"Files checked: {len(valid_results)}")
+            passing = sum(1 for r in valid_results if r["score"] >= min_score)
+            print(f"Passing (>={min_score}): {passing}")
+            print(f"Failing (<{min_score}): {len(valid_results) - passing}")
+            avg_score = sum(r["score"] for r in valid_results) / len(valid_results)
+            print(f"Average score: {avg_score:.1f}")
+            print("=" * 60)
+
+    # Exit code
+    sys.exit(1 if any_failed else 0)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+# Prose Check Configuration
+# Copy this file to your project root as .prose-check.yaml
+
+# Minimum score to pass (0-100, default: 60)
+# 90+ = Excellent, 75-89 = Good, 60-74 = Fair, 40-59 = Needs work, <40 = High AI signal
+min_score: 60
+
+# Files/patterns to exclude from checking
+# Uses glob patterns (fnmatch style)
+exclude:
+  - "CHANGELOG.md"
+  - "vendor/**"
+  - "node_modules/**"
+  - "*.min.js"
+  - ".git/**"
+
+# Patterns to ignore (by exact pattern name)
+# Use this to whitelist terms you intentionally use
+ignore_patterns: []
+  # Example: uncomment below to allow these terms
+  # - "comprehensive"
+  # - "robust"
+  # - "leverage"
