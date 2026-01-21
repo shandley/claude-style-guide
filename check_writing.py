@@ -30,6 +30,17 @@ MARKERS_PATH = Path(__file__).parent / "results" / "markers.json"
 HIGH_SEVERITY = 2.5
 MEDIUM_SEVERITY = 1.5
 
+# Markdown syntax patterns to ignore (not writing style issues)
+MARKDOWN_PATTERNS = {
+    "##", "###", "####", "#####",
+    "```", "``", "`",
+    "**", "__", "*", "_",
+    "---", "***", "___",
+    "- [", "- [ ]", "- [x]",
+    "|", "|-",
+    ">",
+}
+
 # Categories to check
 CATEGORIES = {
     "phrase_hedging": "Hedging",
@@ -158,6 +169,10 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
         item = marker["item"]
         marker_type = marker["type"]
         log_odds = marker["log_odds"]
+
+        # Skip markdown syntax (not writing style issues)
+        if item in MARKDOWN_PATTERNS or item.strip() in MARKDOWN_PATTERNS:
+            continue
 
         # Skip low-ratio items unless verbose
         if log_odds < MEDIUM_SEVERITY and not verbose:
