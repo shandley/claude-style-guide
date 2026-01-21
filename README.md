@@ -59,10 +59,7 @@ Compare how writing patterns have evolved across Claude versions:
 python run_pipeline.py list-models
 
 # Generate samples from a specific model
-python run_pipeline.py generate-samples --model sonnet-3.5 --n 100
-
-# Generate samples from multiple models at once
-python run_pipeline.py generate-all-models --n 100 --models "opus-3,sonnet-3.5,opus-4.5"
+python run_pipeline.py generate-samples --model sonnet-3.7 --n 100
 
 # Compare patterns across all sampled models
 python run_pipeline.py compare-models --verbose
@@ -71,10 +68,29 @@ python run_pipeline.py compare-models --verbose
 Available models:
 - `opus-4.5` - Claude Opus 4.5 (2025-11)
 - `sonnet-4` - Claude Sonnet 4 (2025-05)
-- `sonnet-3.5` - Claude 3.5 Sonnet (2024-10)
-- `opus-3` - Claude 3 Opus (2024-02)
-- `sonnet-3` - Claude 3 Sonnet (2024-02)
+- `sonnet-3.7` - Claude 3.7 Sonnet (2025-02)
+- `haiku-3.5` - Claude 3.5 Haiku (2024-10)
 - `haiku-3` - Claude 3 Haiku (2024-03)
+
+### Check Your Writing
+
+Analyze any document for AI writing patterns:
+
+```bash
+# Check a text or markdown file
+python check_writing.py document.md
+
+# Check a Word document
+python check_writing.py document.docx
+
+# Verbose output with details
+python check_writing.py document.md --verbose
+```
+
+Output includes a score (0-100, higher = more human-like) and flags for:
+- Overused punctuation (em dashes, colons, semicolons)
+- AI-favored words and phrases
+- Structural issues (short paragraphs, bullet overuse)
 
 ## How It Works
 
@@ -101,18 +117,45 @@ Available models:
 
 ## Key Findings
 
-From analysis of 200 Opus 4.5 samples vs 6000 human texts:
+### Multi-Model Comparison (January 2026)
+
+**Em dash overuse is Opus 4.5 specific:**
+
+| Model | Em Dash vs Human |
+|-------|------------------|
+| Haiku 3 | 0.0x |
+| Sonnet 3.7 | 0.8x |
+| Sonnet 4 | 0.9x |
+| **Opus 4.5** | **16.8x** |
+
+Other models are at or below human levels for em dashes.
+
+**Each model has different word quirks:**
+
+| Word | Worst Offender |
+|------|----------------|
+| "robust" | Haiku 3 (43x) |
+| "nuanced" | Sonnet 4 (56x) |
+| "comprehensive" | Haiku 3 (40x) |
+| "paradigm" | Sonnet 4 (37x) |
+
+### Opus 4.5 vs Human (200 samples vs 6000 texts)
 
 **Punctuation:**
-- Em dash: 16.9x more common in AI
-- Colon: 4.1x more common in AI
-- Semicolon: 3.1x more common in AI
+- Em dash: 16.9x more common
+- Colon: 4.1x more common
+- Semicolon: 3.1x more common
+
+**Structure:**
+- Avg paragraph: 16 words (human: 210 words)
+- Passive voice: 4.7% (human: 14.9%)
+- List items/doc: 9.5 (human: ~0)
 
 **Phrases to avoid:**
 - "comprehensive" (24x)
-- "in essence" (68x)
-- "fundamentally" (16x)
-- "nuanced" (14x)
+- "fundamentally" (17x)
+- "nuanced" (17x)
+- "paradigm" (15x)
 
 ## Requirements
 
@@ -120,10 +163,22 @@ From analysis of 200 Opus 4.5 samples vs 6000 human texts:
 - Anthropic API key
 - ~$1-2 for 200 samples from one model
 
+## Claude Code Skill
+
+This repo includes a Claude Code skill for proactive writing guidance. When installed, Claude will automatically apply human writing patterns when generating prose content.
+
+**Location:** `.claude/skills/human-writing/`
+
+The skill includes:
+- Model-specific pattern warnings
+- Words and phrases to avoid with alternatives
+- Structural guidelines (paragraph length, list usage)
+- Statistical reference data
+
 ## Project Structure
 
 ```
-claude-style-guide/
+opus-styleguide/
 ├── src/
 │   ├── generate_prompts.py    # Prompt generation
 │   ├── generate_samples.py    # Multi-model API sampling
@@ -131,9 +186,14 @@ claude-style-guide/
 │   ├── analyze.py             # Statistical analysis
 │   ├── compare.py             # Cross-model comparison
 │   └── report.py              # Styleguide generation
+├── .claude/skills/
+│   └── human-writing/         # Claude Code skill
+│       ├── SKILL.md           # Writing guidelines
+│       └── statistics.md      # Reference data
 ├── data/                      # Generated data (gitignored)
 ├── results/                   # Output reports
 ├── run_pipeline.py            # CLI entry point
+├── check_writing.py           # Document checker CLI
 └── requirements.txt
 ```
 
