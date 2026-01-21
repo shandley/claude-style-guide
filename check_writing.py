@@ -265,6 +265,9 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
         }
     }
 
+    # Track seen patterns to avoid duplicates (keep highest log_odds)
+    seen_patterns = {}  # pattern_lower -> (severity, index_in_list, log_odds)
+
     # Check each marker
     for marker in markers:
         item = marker["item"]
@@ -313,6 +316,24 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
                 context = text[start:end].replace('\n', ' ')
                 finding["context"] = f"...{context}..."
 
+            # Deduplicate: only add if pattern not seen or this has higher log_odds
+            pattern_key = item.lower()
+            if pattern_key in seen_patterns:
+                prev_severity, prev_idx, prev_log_odds = seen_patterns[pattern_key]
+                if log_odds > prev_log_odds:
+                    # Replace the previous finding with this one
+                    findings[prev_severity][prev_idx] = None  # Mark for removal
+                    if prev_severity == "high":
+                        findings["stats"]["high_severity"] -= 1
+                    elif prev_severity == "medium":
+                        findings["stats"]["medium_severity"] -= 1
+                    findings["stats"]["patterns_found"] -= 1
+                else:
+                    # Keep previous, skip this one
+                    continue
+
+            # Add the finding
+            seen_patterns[pattern_key] = (severity, len(findings[severity]), log_odds)
             findings[severity].append(finding)
             findings["by_category"][marker_type].append(finding)
             findings["stats"]["patterns_found"] += 1
@@ -430,6 +451,10 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
         })
         findings["stats"]["medium_severity"] += 1
         findings["stats"]["patterns_found"] += 1
+
+    # Clean up None values from deduplication
+    for severity in ["high", "medium", "low"]:
+        findings[severity] = [f for f in findings[severity] if f is not None]
 
     return findings
 
