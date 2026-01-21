@@ -23,3 +23,8 @@ Thumbs.db
 
 # NLTK data
 nltk_data/
+
+# Secrets - NEVER commit these
+.env
+.env.local
+!.env.example
