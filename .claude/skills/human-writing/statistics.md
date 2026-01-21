@@ -95,6 +95,40 @@ Key insights:
 - Sonnet 4 overuses "nuanced" (56x) and "paradigm" (37x)
 - Opus 4.5 has relatively lower word overuse but worst em dash problem
 
+## Sentence Starters
+
+AI overuses formulaic starters:
+
+| Starter | AI vs Human Ratio |
+|---------|-------------------|
+| "This document..." | 623x |
+| "Comprehensive..." | 680x |
+| "Technical..." | 82x |
+| "Introduction..." | 58x |
+
+## Transition Words (Counterintuitive)
+
+AI uses FEWER transitions than humans:
+
+| Metric | AI | Human |
+|--------|-----|-------|
+| Formal transitions per 100 sentences | 0.3 | 0.9 |
+| Casual transitions per 100 sentences | 2.3 | 4.0 |
+
+Only overused: "conversely" (50x), "nevertheless" (8x)
+
+## Hedging Language
+
+AI uses 1.2x more hedging overall. Specific overused words:
+
+| Word | AI per 1k | Human per 1k | Ratio |
+|------|-----------|--------------|-------|
+| typically | 0.54 | 0.06 | 9.6x |
+| often | 1.12 | 0.23 | 4.9x |
+| sometimes | 0.47 | 0.11 | 4.2x |
+| potentially | 0.15 | 0.04 | 3.4x |
+| usually | 0.40 | 0.12 | 3.4x |
+
 ## Source
 
 Analysis conducted using log-odds ratios comparing:

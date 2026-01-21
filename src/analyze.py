@@ -795,6 +795,272 @@ def analyze_phrase_patterns(
     return markers
 
 
+def analyze_sentence_starters(
+    opus_sentences: list[list[str]],
+    human_sentences: list[list[str]],
+    verbose: bool = False
+) -> dict:
+    """Analyze what words/patterns start sentences."""
+
+    def get_starters(sentences_list: list[list[str]], n_words: int = 2) -> Counter:
+        """Extract first n words from each sentence."""
+        starters = Counter()
+        for doc_sentences in sentences_list:
+            for sent in doc_sentences:
+                words = sent.split()[:n_words]
+                if words:
+                    starter = " ".join(words).lower()
+                    # Clean punctuation from start
+                    starter = re.sub(r'^[^a-z]+', '', starter)
+                    if starter and len(starter) > 2:
+                        starters[starter] += 1
+        return starters
+
+    # Get single-word and two-word starters
+    opus_starters_1 = get_starters(opus_sentences, 1)
+    human_starters_1 = get_starters(human_sentences, 1)
+    opus_starters_2 = get_starters(opus_sentences, 2)
+    human_starters_2 = get_starters(human_sentences, 2)
+
+    opus_total_1 = sum(opus_starters_1.values())
+    human_total_1 = sum(human_starters_1.values())
+    opus_total_2 = sum(opus_starters_2.values())
+    human_total_2 = sum(human_starters_2.values())
+
+    # Find distinctive single-word starters
+    distinctive_starters_1 = []
+    for starter, opus_count in opus_starters_1.most_common(100):
+        human_count = human_starters_1.get(starter, 0)
+        if opus_count < 5:
+            continue
+        opus_rate = opus_count / opus_total_1
+        human_rate = (human_count + 0.5) / (human_total_1 + 1)
+        ratio = opus_rate / human_rate
+        if ratio > 1.5:
+            distinctive_starters_1.append({
+                "starter": starter,
+                "opus_pct": round(opus_rate * 100, 2),
+                "human_pct": round(human_rate * 100, 2),
+                "ratio": round(ratio, 1)
+            })
+
+    # Find distinctive two-word starters
+    distinctive_starters_2 = []
+    for starter, opus_count in opus_starters_2.most_common(200):
+        human_count = human_starters_2.get(starter, 0)
+        if opus_count < 3:
+            continue
+        opus_rate = opus_count / opus_total_2
+        human_rate = (human_count + 0.5) / (human_total_2 + 1)
+        ratio = opus_rate / human_rate
+        if ratio > 2.0:
+            distinctive_starters_2.append({
+                "starter": starter,
+                "opus_pct": round(opus_rate * 100, 2),
+                "human_pct": round(human_rate * 100, 2),
+                "ratio": round(ratio, 1)
+            })
+
+    # Sort by ratio
+    distinctive_starters_1.sort(key=lambda x: -x["ratio"])
+    distinctive_starters_2.sort(key=lambda x: -x["ratio"])
+
+    if verbose:
+        print(f"  Found {len(distinctive_starters_1)} distinctive single-word starters")
+        print(f"  Found {len(distinctive_starters_2)} distinctive two-word starters")
+        if distinctive_starters_1:
+            print(f"  Top single-word: {distinctive_starters_1[0]}")
+        if distinctive_starters_2:
+            print(f"  Top two-word: {distinctive_starters_2[0]}")
+
+    return {
+        "sentence_starters_1word": distinctive_starters_1[:20],
+        "sentence_starters_2word": distinctive_starters_2[:20],
+    }
+
+
+def analyze_transition_words(
+    opus_texts: list[str],
+    human_texts: list[str],
+    verbose: bool = False
+) -> dict:
+    """Analyze frequency of formal transition words."""
+
+    # Formal transitions (AI tends to overuse)
+    formal_transitions = [
+        "however", "furthermore", "moreover", "additionally", "consequently",
+        "nevertheless", "therefore", "thus", "hence", "accordingly",
+        "subsequently", "conversely", "alternatively", "specifically",
+        "notably", "importantly", "significantly", "ultimately"
+    ]
+
+    # Casual transitions (human-like)
+    casual_transitions = [
+        "but", "and", "so", "also", "still", "yet", "then", "now",
+        "plus", "anyway", "besides", "though"
+    ]
+
+    def count_transitions(texts: list[str], transitions: list[str]) -> dict:
+        """Count transition words at sentence boundaries."""
+        counts = Counter()
+        total_sentences = 0
+        for text in texts:
+            sentences = nltk.sent_tokenize(text)
+            total_sentences += len(sentences)
+            for sent in sentences:
+                first_word = sent.split()[0].lower().rstrip(",") if sent.split() else ""
+                if first_word in transitions:
+                    counts[first_word] += 1
+        return counts, total_sentences
+
+    opus_formal, opus_sents = count_transitions(opus_texts, formal_transitions)
+    human_formal, human_sents = count_transitions(human_texts, formal_transitions)
+    opus_casual, _ = count_transitions(opus_texts, casual_transitions)
+    human_casual, _ = count_transitions(human_texts, casual_transitions)
+
+    # Calculate rates per 100 sentences
+    opus_formal_total = sum(opus_formal.values())
+    human_formal_total = sum(human_formal.values())
+    opus_casual_total = sum(opus_casual.values())
+    human_casual_total = sum(human_casual.values())
+
+    opus_formal_rate = (opus_formal_total / opus_sents * 100) if opus_sents > 0 else 0
+    human_formal_rate = (human_formal_total / human_sents * 100) if human_sents > 0 else 0
+    opus_casual_rate = (opus_casual_total / opus_sents * 100) if opus_sents > 0 else 0
+    human_casual_rate = (human_casual_total / human_sents * 100) if human_sents > 0 else 0
+
+    # Per-word breakdown
+    formal_breakdown = []
+    for word in formal_transitions:
+        opus_count = opus_formal.get(word, 0)
+        human_count = human_formal.get(word, 0)
+        opus_rate = (opus_count / opus_sents * 100) if opus_sents > 0 else 0
+        human_rate = (human_count / human_sents * 100) if human_sents > 0 else 0
+        if opus_count > 0 or human_count > 0:
+            ratio = opus_rate / human_rate if human_rate > 0 else float('inf')
+            formal_breakdown.append({
+                "word": word,
+                "opus_per_100_sents": round(opus_rate, 2),
+                "human_per_100_sents": round(human_rate, 2),
+                "ratio": round(ratio, 1) if ratio != float('inf') else "high"
+            })
+
+    formal_breakdown.sort(key=lambda x: -(x["ratio"] if isinstance(x["ratio"], (int, float)) else 999))
+
+    if verbose:
+        print(f"  Opus formal transitions: {opus_formal_rate:.1f} per 100 sentences")
+        print(f"  Human formal transitions: {human_formal_rate:.1f} per 100 sentences")
+        print(f"  Opus casual transitions: {opus_casual_rate:.1f} per 100 sentences")
+        print(f"  Human casual transitions: {human_casual_rate:.1f} per 100 sentences")
+
+    return {
+        "transition_formal_opus_rate": round(opus_formal_rate, 2),
+        "transition_formal_human_rate": round(human_formal_rate, 2),
+        "transition_casual_opus_rate": round(opus_casual_rate, 2),
+        "transition_casual_human_rate": round(human_casual_rate, 2),
+        "transition_formal_ratio": round(opus_formal_rate / human_formal_rate, 1) if human_formal_rate > 0 else "high",
+        "transition_breakdown": formal_breakdown[:15],
+    }
+
+
+def analyze_hedging_language(
+    opus_texts: list[str],
+    human_texts: list[str],
+    verbose: bool = False
+) -> dict:
+    """Analyze frequency of hedging/qualifying language."""
+
+    # Hedging words and phrases
+    hedging_words = [
+        "might", "could", "may", "perhaps", "possibly", "potentially",
+        "generally", "typically", "usually", "often", "sometimes",
+        "likely", "unlikely", "probably", "arguably", "seemingly",
+        "somewhat", "relatively", "fairly", "rather", "quite"
+    ]
+
+    # Hedging phrases
+    hedging_phrases = [
+        "it seems", "it appears", "it is possible", "it is likely",
+        "to some extent", "in some cases", "in many cases",
+        "tend to", "tends to", "can be", "may be", "might be",
+        "it could be", "it might be", "it may be"
+    ]
+
+    def count_hedging(texts: list[str]) -> tuple[int, int, int]:
+        """Count hedging words, phrases, and total words."""
+        word_count = 0
+        phrase_count = 0
+        total_words = 0
+
+        for text in texts:
+            text_lower = text.lower()
+            words = text_lower.split()
+            total_words += len(words)
+
+            # Count hedging words
+            for word in words:
+                clean_word = re.sub(r'[^a-z]', '', word)
+                if clean_word in hedging_words:
+                    word_count += 1
+
+            # Count hedging phrases
+            for phrase in hedging_phrases:
+                phrase_count += text_lower.count(phrase)
+
+        return word_count, phrase_count, total_words
+
+    opus_words, opus_phrases, opus_total = count_hedging(opus_texts)
+    human_words, human_phrases, human_total = count_hedging(human_texts)
+
+    # Calculate rates per 1000 words
+    opus_word_rate = (opus_words / opus_total * 1000) if opus_total > 0 else 0
+    human_word_rate = (human_words / human_total * 1000) if human_total > 0 else 0
+    opus_phrase_rate = (opus_phrases / opus_total * 1000) if opus_total > 0 else 0
+    human_phrase_rate = (human_phrases / human_total * 1000) if human_total > 0 else 0
+
+    opus_total_rate = opus_word_rate + opus_phrase_rate
+    human_total_rate = human_word_rate + human_phrase_rate
+
+    # Per-word breakdown
+    word_breakdown = []
+    for hedge_word in hedging_words:
+        opus_count = sum(1 for text in opus_texts
+                       for word in text.lower().split()
+                       if re.sub(r'[^a-z]', '', word) == hedge_word)
+        human_count = sum(1 for text in human_texts
+                        for word in text.lower().split()
+                        if re.sub(r'[^a-z]', '', word) == hedge_word)
+
+        opus_rate = (opus_count / opus_total * 1000) if opus_total > 0 else 0
+        human_rate = (human_count / human_total * 1000) if human_total > 0 else 0
+
+        if opus_count >= 3:
+            ratio = opus_rate / human_rate if human_rate > 0 else float('inf')
+            word_breakdown.append({
+                "word": hedge_word,
+                "opus_per_1k": round(opus_rate, 2),
+                "human_per_1k": round(human_rate, 2),
+                "ratio": round(ratio, 1) if ratio != float('inf') else "high"
+            })
+
+    word_breakdown.sort(key=lambda x: -(x["ratio"] if isinstance(x["ratio"], (int, float)) else 999))
+
+    if verbose:
+        print(f"  Opus hedging rate: {opus_total_rate:.1f} per 1k words")
+        print(f"  Human hedging rate: {human_total_rate:.1f} per 1k words")
+        ratio = opus_total_rate / human_total_rate if human_total_rate > 0 else float('inf')
+        print(f"  Ratio: {ratio:.1f}x")
+
+    return {
+        "hedging_opus_rate": round(opus_total_rate, 2),
+        "hedging_human_rate": round(human_total_rate, 2),
+        "hedging_ratio": round(opus_total_rate / human_total_rate, 1) if human_total_rate > 0 else "high",
+        "hedging_word_rate_opus": round(opus_word_rate, 2),
+        "hedging_word_rate_human": round(human_word_rate, 2),
+        "hedging_breakdown": word_breakdown[:15],
+    }
+
+
 def run_analysis(
     opus_path: Path,
     human_path: Path,
@@ -853,6 +1119,24 @@ def run_analysis(
         print("\nAnalyzing paragraph patterns...")
     paragraph_stats = analyze_paragraph_patterns(opus_texts, human_texts, verbose)
     summary_stats.update(paragraph_stats)
+
+    # Sentence starter analysis
+    if verbose:
+        print("\nAnalyzing sentence starters...")
+    starter_stats = analyze_sentence_starters(opus_sentences, human_sentences, verbose)
+    summary_stats.update(starter_stats)
+
+    # Transition word analysis
+    if verbose:
+        print("\nAnalyzing transition words...")
+    transition_stats = analyze_transition_words(opus_texts, human_texts, verbose)
+    summary_stats.update(transition_stats)
+
+    # Hedging language analysis
+    if verbose:
+        print("\nAnalyzing hedging language...")
+    hedging_stats = analyze_hedging_language(opus_texts, human_texts, verbose)
+    summary_stats.update(hedging_stats)
 
     # Combine and sort all markers by log-odds
     all_markers = lexical_markers + structural_markers + phrase_markers

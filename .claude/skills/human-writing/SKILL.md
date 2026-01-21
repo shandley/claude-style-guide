@@ -86,15 +86,46 @@ These phrases strongly signal AI writing:
 
 ## Sentence Starters to Avoid
 
-Don't begin sentences with:
+Don't begin sentences with these formulaic patterns (from analysis):
 
-- "This comprehensive..."
-- "Let's delve into..."
+| Avoid | Ratio vs Human |
+|-------|----------------|
+| "This document/guide/article..." | 623x |
+| "Comprehensive..." | 680x |
+| "Introduction..." | 58x |
+| "Let's..." | high |
+| "In this..." | high |
+
+Also avoid:
 - "It's worth noting that..."
 - "In today's [anything]..."
 - "When it comes to..."
 - "At its core..."
-- "In essence..."
+
+## Hedging Language
+
+AI overuses these qualifying words. Use sparingly:
+
+| Word | AI Overuse Ratio |
+|------|------------------|
+| typically | 9.6x |
+| often | 4.9x |
+| sometimes | 4.2x |
+| potentially | 3.4x |
+| usually | 3.4x |
+| rather | 3.3x |
+
+**Be more direct.** Instead of "This typically works well," write "This works well."
+
+## Transition Words (Counterintuitive)
+
+AI uses FEWER transition words than humans, not more:
+- AI: 0.3 formal transitions per 100 sentences
+- Human: 0.9 formal transitions per 100 sentences
+
+Only "conversely" (50x) and "nevertheless" (8x) are AI-overused. "However" is actually more common in human writing (0.52 vs 0.08 per 100 sentences).
+
+**Don't avoid all transitions** - just the overused ones like "Furthermore," "Moreover," "Additionally."
 
 ## Structure Guidelines
 

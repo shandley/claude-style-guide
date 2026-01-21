@@ -62,6 +62,29 @@ CATEGORIES = {
     "sentence_starter": "Sentence starters",
 }
 
+# Hedging words that AI overuses (with ratios from analysis)
+HEDGING_WORDS = {
+    "typically": 9.6,
+    "often": 4.9,
+    "sometimes": 4.2,
+    "potentially": 3.4,
+    "usually": 3.4,
+    "rather": 3.3,
+    "probably": 2.2,
+}
+
+# Formulaic sentence starters AI overuses
+FORMULAIC_STARTERS = [
+    "this document",
+    "this guide",
+    "this article",
+    "this section",
+    "comprehensive",
+    "in this",
+    "introduction",
+    "let's",
+]
+
 # Human alternatives for common patterns
 ALTERNATIVES = {
     "comprehensive": "complete, full, thorough",
@@ -283,6 +306,58 @@ def check_text(text: str, markers: list, verbose: bool = False) -> dict:
             })
             findings["stats"]["medium_severity"] += 1
             findings["stats"]["patterns_found"] += 1
+
+    # Hedging word check
+    hedging_count = 0
+    hedging_details = []
+    for word, ratio in HEDGING_WORDS.items():
+        pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
+        count = len(pattern.findall(text))
+        if count > 0:
+            hedging_count += count
+            hedging_details.append(f"{word}({count})")
+
+    if total_words > 0:
+        hedging_per_1k = hedging_count / total_words * 1000
+        # Flag if hedging rate is significantly above human average (4.8 per 1k)
+        if hedging_per_1k > 8.0:  # ~1.7x human average
+            findings["medium"].append({
+                "pattern": "Hedging language overuse",
+                "type": "hedging",
+                "count": hedging_count,
+                "severity": "medium",
+                "ratio": hedging_per_1k / 4.8,
+                "alternative": "Be more direct; reduce typically/often/sometimes",
+                "context": f"{hedging_per_1k:.1f} per 1k words: {', '.join(hedging_details[:5])}"
+            })
+            findings["stats"]["medium_severity"] += 1
+            findings["stats"]["patterns_found"] += 1
+
+    # Formulaic sentence starter check
+    sentences = re.split(r'[.!?]+', text)
+    formulaic_count = 0
+    formulaic_examples = []
+    for sentence in sentences:
+        sentence_clean = sentence.strip().lower()
+        for starter in FORMULAIC_STARTERS:
+            if sentence_clean.startswith(starter):
+                formulaic_count += 1
+                if len(formulaic_examples) < 3:
+                    formulaic_examples.append(sentence.strip()[:50] + "...")
+                break
+
+    if formulaic_count >= 2:
+        findings["medium"].append({
+            "pattern": "Formulaic sentence starters",
+            "type": "sentence_starter",
+            "count": formulaic_count,
+            "severity": "medium",
+            "ratio": formulaic_count,
+            "alternative": "Vary sentence openings; avoid 'This document/guide/article'",
+            "context": "; ".join(formulaic_examples[:2])
+        })
+        findings["stats"]["medium_severity"] += 1
+        findings["stats"]["patterns_found"] += 1
 
     return findings
 
