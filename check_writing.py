@@ -157,8 +157,12 @@ def load_config(config_path: Optional[Path] = None) -> dict:
             print("Warning: PyYAML not installed, config file ignored", file=sys.stderr)
             return config
 
-        with open(config_path) as f:
-            file_config = yaml.safe_load(f) or {}
+        try:
+            with open(config_path) as f:
+                file_config = yaml.safe_load(f) or {}
+        except yaml.YAMLError as e:
+            print(f"Warning: Invalid config file {config_path}: {e}", file=sys.stderr)
+            return config
 
         # Merge with defaults
         if "min_score" in file_config:
