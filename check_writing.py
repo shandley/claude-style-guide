@@ -1042,9 +1042,17 @@ def interactive_mode(text: str, findings: dict, filepath: str) -> str:
                 # Use first alternative
                 alts = [a.strip() for a in alternative.split(",")]
                 replacement = alts[0]
+
+                # Handle special cases in suggestions
                 if replacement.startswith("(") and replacement.endswith(")"):
                     # Things like "(delete)" mean remove it
                     replacement = ""
+                elif "(or delete)" in replacement.lower():
+                    # "basically (or delete)" -> "basically"
+                    replacement = re.sub(r'\s*\(or delete\)\s*', '', replacement, flags=re.IGNORECASE).strip()
+                elif replacement.endswith(")") and "(" in replacement:
+                    # Strip trailing parenthetical notes like "word (note)"
+                    replacement = re.sub(r'\s*\([^)]+\)\s*$', '', replacement).strip()
 
                 old_text = modified_text
                 modified_text = apply_replacement(modified_text, pattern, replacement)
